@@ -4,7 +4,7 @@ package com.allaltv.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +43,7 @@ fun AllalTVApp() {
 
     var selectedTab by remember { mutableStateOf("الرئيسية") }
     var searchText by remember { mutableStateOf("") }
+    var selectedChannel by remember { mutableStateOf<TVChannel?>(null) }
 
     val backgroundColor = Color(0xFF101820)
     val greenColor = Color(0xFF00C878)
@@ -130,7 +131,11 @@ fun AllalTVApp() {
                     ) {
                         items(filteredChannels) { channel ->
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedChannel = channel
+                                    },
                                 colors = CardDefaults.cardColors(
                                     containerColor = Color(0xFF1D2B36)
                                 ),
@@ -177,5 +182,28 @@ fun AllalTVApp() {
                 )
             }
         }
+    }
+
+    selectedChannel?.let { channel ->
+        AlertDialog(
+            onDismissRequest = { selectedChannel = null },
+            containerColor = Color(0xFF1D2B36),
+            title = {
+                Text(channel.name, color = greenColor)
+            },
+            text = {
+                Text(
+                    "تم اختيار القناة بنجاح. رابط البث غير متوفر حالياً، وسيتم إضافته لاحقاً.",
+                    color = Color.White
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { selectedChannel = null }
+                ) {
+                    Text("حسناً", color = greenColor)
+                }
+            }
+        )
     }
 }
