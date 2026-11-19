@@ -40,7 +40,11 @@ data class TVChannel(
 @Composable
 fun AllalTVApp() {
     val channels = listOf(
-        TVChannel("قناة تجريبية 1", "عام"),
+        TVChannel(
+            "قناة تجريبية 1",
+            "عام",
+            "https://cdn.freevisiontv.co.za/sttv/smil:1kzn.stream.smil/playlist.m3u8"
+        ),
         TVChannel("قناة تجريبية 2", "رياضة"),
         TVChannel("قناة تجريبية 3", "أخبار"),
         TVChannel("قناة تجريبية 4", "ترفيه")
