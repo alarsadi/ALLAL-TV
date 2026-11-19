@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -26,27 +25,17 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.border
-import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 private val Navy = Color(0xFF081321)
 private val CardColor = Color(0xFF122337)
@@ -61,16 +50,42 @@ data class TVChannel(
 )
 
 class MainActivity : ComponentActivity() {
+
+    private fun hideSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        WindowInsetsControllerCompat(
+            window,
+            window.decorView
+        ).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        hideSystemBars()
+
         setContent {
             ALLALTVApp()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+
+        if (hasFocus) {
+            hideSystemBars()
         }
     }
 }
 
 @Composable
 fun ALLALTVApp() {
+
     val channels = remember {
         listOf(
             TVChannel(
@@ -94,30 +109,37 @@ fun ALLALTVApp() {
         selectedChannel = null
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Rtl
+    ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = Navy
         ) {
+
             if (selectedChannel == null) {
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Navy)
                 ) {
+
                     Header()
 
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(horizontal = 18.dp)
                     ) {
+
                         Text(
                             "شاهد قنواتك المفضلة",
                             color = White,
                             fontSize = 23.sp,
                             fontWeight = FontWeight.Bold
                         )
+
                         Text(
                             "كل البث المباشر في مكان واحد",
                             color = Muted,
@@ -142,12 +164,18 @@ fun ALLALTVApp() {
                                 .background(CardColor)
                                 .padding(16.dp),
                             decorationBox = { innerTextField ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text("⌕", color = Green, fontSize = 22.sp)
                                     Spacer(modifier = Modifier.width(10.dp))
+
                                     Box {
                                         if (searchText.isEmpty()) {
-                                            Text("ابحث عن قناة...", color = Muted)
+                                            Text(
+                                                "ابحث عن قناة...",
+                                                color = Muted
+                                            )
                                         }
                                         innerTextField()
                                     }
@@ -170,14 +198,30 @@ fun ALLALTVApp() {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf("الكل", "رياضة", "أخبار", "ترفيه", "عام").forEach { category ->
+
+                            listOf(
+                                "الكل",
+                                "رياضة",
+                                "أخبار",
+                                "ترفيه",
+                                "عام"
+                            ).forEach { category ->
+
                                 val active = selectedCategory == category
+
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(20.dp))
-                                        .background(if (active) Green else CardColor)
-                                        .clickable { selectedCategory = category }
-                                        .padding(horizontal = 13.dp, vertical = 9.dp)
+                                        .background(
+                                            if (active) Green else CardColor
+                                        )
+                                        .clickable {
+                                            selectedCategory = category
+                                        }
+                                        .padding(
+                                            horizontal = 13.dp,
+                                            vertical = 9.dp
+                                        )
                                 ) {
                                     Text(
                                         category,
@@ -195,24 +239,33 @@ fun ALLALTVApp() {
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+
                             Text(
                                 "القنوات المباشرة",
                                 color = White,
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold
                             )
+
                             Spacer(modifier = Modifier.weight(1f))
-                            Text("● LIVE", color = Green, fontSize = 12.sp)
+
+                            Text(
+                                "● LIVE",
+                                color = Green,
+                                fontSize = 12.sp
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
                         val filteredChannels = channels.filter {
-                            (selectedCategory == "الكل" || it.category == selectedCategory) &&
-                            it.name.contains(searchText, ignoreCase = true)
+                            (selectedCategory == "الكل" ||
+                                it.category == selectedCategory) &&
+                                it.name.contains(searchText, ignoreCase = true)
                         }
 
                         LazyColumn(
+                            modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
@@ -224,7 +277,9 @@ fun ALLALTVApp() {
                         }
                     }
                 }
+
             } else {
+
                 PlayerScreen(
                     channel = selectedChannel!!,
                     onBack = { selectedChannel = null }
@@ -236,17 +291,22 @@ fun ALLALTVApp() {
 
 @Composable
 fun Header() {
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(
                 Brush.horizontalGradient(
-                    listOf(Color(0xFF102A3E), Color(0xFF0A1727))
+                    listOf(
+                        Color(0xFF102A3E),
+                        Color(0xFF0A1727)
+                    )
                 )
             )
             .padding(horizontal = 20.dp, vertical = 19.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+
         Box(
             modifier = Modifier
                 .size(43.dp)
@@ -271,6 +331,7 @@ fun Header() {
                 fontSize = 21.sp,
                 fontWeight = FontWeight.Black
             )
+
             Text(
                 "LIVE TELEVISION",
                 color = Green,
@@ -282,7 +343,11 @@ fun Header() {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Text("● مباشر", color = Green, fontSize = 12.sp)
+        Text(
+            "● مباشر",
+            color = Green,
+            fontSize = 12.sp
+        )
     }
 }
 
@@ -291,6 +356,7 @@ fun ChannelCard(
     channel: TVChannel,
     onClick: () -> Unit
 ) {
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -300,6 +366,7 @@ fun ChannelCard(
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+
         Box(
             modifier = Modifier
                 .size(58.dp)
@@ -317,13 +384,16 @@ fun ChannelCard(
         Spacer(modifier = Modifier.width(13.dp))
 
         Column(modifier = Modifier.weight(1f)) {
+
             Text(
                 channel.name,
                 color = White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
+
             Spacer(modifier = Modifier.height(5.dp))
+
             Text(
                 channel.category,
                 color = Muted,
@@ -332,9 +402,20 @@ fun ChannelCard(
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("● LIVE", color = Green, fontSize = 10.sp)
+
+            Text(
+                "● LIVE",
+                color = Green,
+                fontSize = 10.sp
+            )
+
             Spacer(modifier = Modifier.height(7.dp))
-            Text("▶", color = White, fontSize = 17.sp)
+
+            Text(
+                "▶",
+                color = White,
+                fontSize = 17.sp
+            )
         }
     }
 }
@@ -344,6 +425,7 @@ fun PlayerScreen(
     channel: TVChannel,
     onBack: () -> Unit
 ) {
+
     val context = LocalContext.current
 
     Column(
@@ -351,6 +433,7 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -358,24 +441,41 @@ fun PlayerScreen(
                 .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Text(
                 "‹",
                 color = White,
                 fontSize = 32.sp,
-                modifier = Modifier.clickable { onBack() }
+                modifier = Modifier.clickable {
+                    onBack()
+                }
             )
+
             Spacer(modifier = Modifier.width(15.dp))
+
             Column {
+
                 Text(
                     channel.name,
                     color = White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text("بث مباشر", color = Green, fontSize = 11.sp)
+
+                Text(
+                    "بث مباشر",
+                    color = Green,
+                    fontSize = 11.sp
+                )
             }
+
             Spacer(modifier = Modifier.weight(1f))
-            Text("ALLAL TV", color = Green, fontWeight = FontWeight.Black)
+
+            Text(
+                "ALLAL TV",
+                color = Green,
+                fontWeight = FontWeight.Black
+            )
         }
 
         Box(
@@ -385,7 +485,9 @@ fun PlayerScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
+
             if (channel.url != null) {
+
                 val player = remember(channel.url) {
                     ExoPlayer.Builder(context).build().apply {
                         setMediaItem(MediaItem.fromUri(channel.url))
@@ -406,11 +508,16 @@ fun PlayerScreen(
                         PlayerView(ctx).apply {
                             this.player = player
                             useController = true
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            resizeMode =
+                                AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            setShowBuffering(
+                                PlayerView.SHOW_BUFFERING_WHEN_PLAYING
+                            )
                         }
                     },
-                    update = { it.player = player }
+                    update = {
+                        it.player = player
+                    }
                 )
 
                 Text(
@@ -423,18 +530,33 @@ fun PlayerScreen(
                         .padding(12.dp)
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(
+                            horizontal = 10.dp,
+                            vertical = 6.dp
+                        )
                 )
+
             } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("▶", color = Green, fontSize = 45.sp)
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+
+                    Text(
+                        "▶",
+                        color = Green,
+                        fontSize = 45.sp
+                    )
+
                     Spacer(modifier = Modifier.height(14.dp))
+
                     Text(
                         "البث غير متوفر حالياً",
                         color = White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
+
                     Text(
                         "سيتم إضافة رابط القناة لاحقاً",
                         color = Muted,
@@ -451,12 +573,14 @@ fun PlayerScreen(
                 .background(Navy)
                 .padding(18.dp)
         ) {
+
             Text(
                 channel.name,
                 color = White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
+
             Text(
                 "مشغل ALLAL TV",
                 color = Green,
