@@ -1,6 +1,7 @@
 
 package com.allaltv.app
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,7 +27,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.text.BasicTextField
+import androidx.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Brush
@@ -66,7 +67,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         hideSystemBars()
 
         setContent {
@@ -76,10 +76,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-
-        if (hasFocus) {
-            hideSystemBars()
-        }
+        if (hasFocus) hideSystemBars()
     }
 }
 
@@ -116,7 +113,6 @@ fun ALLALTVApp() {
             modifier = Modifier.fillMaxSize(),
             color = Navy
         ) {
-
             if (selectedChannel == null) {
 
                 Column(
@@ -127,9 +123,12 @@ fun ALLALTVApp() {
 
                     Header()
 
+                    UpdateSection()
+
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .weight(1f)
+                            .fillMaxWidth()
                             .padding(horizontal = 18.dp)
                     ) {
 
@@ -198,7 +197,6 @@ fun ALLALTVApp() {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-
                             listOf(
                                 "الكل",
                                 "رياضة",
@@ -239,7 +237,6 @@ fun ALLALTVApp() {
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-
                             Text(
                                 "القنوات المباشرة",
                                 color = White,
@@ -279,11 +276,101 @@ fun ALLALTVApp() {
                 }
 
             } else {
-
                 PlayerScreen(
                     channel = selectedChannel!!,
                     onBack = { selectedChannel = null }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun UpdateSection() {
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    var updateInfo by remember {
+        mutableStateOf<UpdateManager.UpdateInfo?>(null)
+    }
+
+    var status by remember {
+        mutableStateOf("تحقق من وجود إصدار جديد")
+    }
+
+    var checking by remember {
+        mutableStateOf(false)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(CardColor)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "تحديثات ALLAL TV",
+            color = White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            status,
+            color = Muted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 5.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                if (activity != null) {
+                    checking = true
+                    updateInfo = null
+                    status = "جاري البحث عن تحديث..."
+
+                    UpdateManager.checkForUpdate(activity) { info, message ->
+                        updateInfo = info
+                        status = message
+                        checking = false
+                    }
+                }
+            },
+            enabled = !checking && activity != null,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Navy
+            )
+        ) {
+            Text(
+                if (checking) "جاري البحث..." else "التحقق من التحديثات"
+            )
+        }
+
+        if (updateInfo != null) {
+            Button(
+                onClick = {
+                    activity?.let { currentActivity ->
+                        UpdateManager.downloadAndInstall(
+                            currentActivity,
+                            updateInfo!!.apkUrl
+                        ) { message ->
+                            status = message
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2476D2),
+                    contentColor = White
+                )
+            ) {
+                Text("تحميل وتثبيت ${updateInfo!!.versionName}")
             }
         }
     }
@@ -374,17 +461,12 @@ fun ChannelCard(
                 .background(Color(0xFF1B344A)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                "▶",
-                color = Green,
-                fontSize = 23.sp
-            )
+            Text("▶", color = Green, fontSize = 23.sp)
         }
 
         Spacer(modifier = Modifier.width(13.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-
             Text(
                 channel.name,
                 color = White,
@@ -402,20 +484,11 @@ fun ChannelCard(
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-            Text(
-                "● LIVE",
-                color = Green,
-                fontSize = 10.sp
-            )
+            Text("● LIVE", color = Green, fontSize = 10.sp)
 
             Spacer(modifier = Modifier.height(7.dp))
 
-            Text(
-                "▶",
-                color = White,
-                fontSize = 17.sp
-            )
+            Text("▶", color = White, fontSize = 17.sp)
         }
     }
 }
@@ -428,10 +501,26 @@ fun PlayerScreen(
 
     val context = LocalContext.current
 
+    val player = remember(channel.url) {
+        channel.url?.let { url ->
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(url))
+                prepare()
+                playWhenReady = true
+            }
+        }
+    }
+
+    DisposableEffect(player) {
+        onDispose {
+            player?.release()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Navy)
     ) {
 
         Row(
@@ -445,16 +534,13 @@ fun PlayerScreen(
             Text(
                 "‹",
                 color = White,
-                fontSize = 32.sp,
-                modifier = Modifier.clickable {
-                    onBack()
-                }
+                fontSize = 34.sp,
+                modifier = Modifier.clickable { onBack() }
             )
 
             Spacer(modifier = Modifier.width(15.dp))
 
             Column {
-
                 Text(
                     channel.name,
                     color = White,
@@ -481,26 +567,13 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
 
-            if (channel.url != null) {
-
-                val player = remember(channel.url) {
-                    ExoPlayer.Builder(context).build().apply {
-                        setMediaItem(MediaItem.fromUri(channel.url))
-                        prepare()
-                        playWhenReady = true
-                    }
-                }
-
-                DisposableEffect(player) {
-                    onDispose {
-                        player.release()
-                    }
-                }
+            if (player != null) {
 
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
@@ -520,19 +593,20 @@ fun PlayerScreen(
                     }
                 )
 
+                // شعار التطبيق فوق شعار القناة
                 Text(
                     "ALLAL TV",
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(Color.Black.copy(alpha = 0.85f))
                         .padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp
+                            horizontal = 12.dp,
+                            vertical = 7.dp
                         )
                 )
 
@@ -541,7 +615,6 @@ fun PlayerScreen(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
                     Text(
                         "▶",
                         color = Green,
@@ -570,22 +643,30 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Navy)
                 .padding(18.dp)
         ) {
 
             Text(
                 channel.name,
                 color = White,
-                fontSize = 18.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 "مشغل ALLAL TV",
                 color = Green,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 5.dp)
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                "استمتع بمشاهدة البث المباشر",
+                color = Muted,
+                fontSize = 12.sp
             )
         }
     }
