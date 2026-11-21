@@ -1,11 +1,12 @@
 package com.allaltv.app
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,12 +21,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -38,8 +38,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -64,7 +64,7 @@ private const val WORLD_PLAYLIST =
 data class TVChannel(
     val name: String,
     val category: String,
-    val url: String?,
+    val url: String,
     val logo: String? = null
 )
 
@@ -72,96 +72,58 @@ private fun parseM3U(
     content: String,
     forceSports: Boolean = false
 ): List<TVChannel> {
-
-    val channels = mutableListOf<TVChannel>()
-    var channelName = ""
-    var channelLogo: String? = null
-    var groupTitle = ""
+    val result = mutableListOf<TVChannel>()
+    var name = ""
+    var logo: String? = null
+    var group = ""
 
     val nameRegex = Regex("""tvg-name="([^"]*)"""")
     val logoRegex = Regex("""tvg-logo="([^"]*)"""")
     val groupRegex = Regex("""group-title="([^"]*)"""")
 
-    for (rawLine in content.lineSequence()) {
-        val line = rawLine.trim()
+    for (raw in content.lineSequence()) {
+        val line = raw.trim()
 
-        if (line.startsWith("#EXTINF", ignoreCase = true)) {
-
-            val displayName =
-                line.substringAfterLast(",", "").trim()
-
-            channelName = nameRegex.find(line)
-                ?.groupValues?.get(1)
-                ?.takeIf { it.isNotBlank() }
-                ?: displayName
-
-            channelLogo = logoRegex.find(line)
-                ?.groupValues?.get(1)
-                ?.takeIf {
-                    it.startsWith("https://") ||
-                    it.startsWith("http://")
-                }
-
-            groupTitle = groupRegex.find(line)
-                ?.groupValues?.get(1) ?: ""
-
-        } else if (
-            line.isNotBlank() &&
-            !line.startsWith("#") &&
-            channelName.isNotBlank()
-        ) {
+        if (line.startsWith("#EXTINF", true)) {
+            val displayName = line.substringAfterLast(",").trim()
+            name = nameRegex.find(line)?.groupValues?.get(1)
+                ?.takeIf { it.isNotBlank() } ?: displayName
+            logo = logoRegex.find(line)?.groupValues?.get(1)
+            group = groupRegex.find(line)?.groupValues?.get(1) ?: ""
+        } else if (line.isNotBlank() && !line.startsWith("#") && name.isNotBlank()) {
+            val value = "$name $group".lowercase()
 
             val category = when {
-                forceSports ||
-                groupTitle.contains("sport", true) ||
-                channelName.contains("sport", true) ->
-                    "رياضة"
-
-                groupTitle.contains("news", true) ->
-                    "أخبار"
-
-                groupTitle.contains("movie", true) ||
-                groupTitle.contains("entertain", true) ->
-                    "ترفيه"
-
-                else -> "عالمية"
+                forceSports -> "رياضة"
+                listOf("sport", "football", "soccer", "bein", "match")
+                    .any { value.contains(it) } -> "رياضة"
+                listOf("entertain", "movie", "cinema", "film", "series",
+                    "kids", "music", "comedy", "drama", "animation")
+                    .any { value.contains(it) } -> "ترفيه"
+                else -> null
             }
 
-            channels.add(
-                TVChannel(
-                    name = channelName,
-                    category = category,
-                    url = line,
-                    logo = channelLogo
-                )
-            )
+            if (category != null) {
+                result.add(TVChannel(name, category, line, logo))
+            }
 
-            channelName = ""
-            channelLogo = null
-            groupTitle = ""
+            name = ""
+            logo = null
+            group = ""
         }
     }
-
-    return channels
+    return result
 }
 
 private fun downloadPlaylist(
     playlistUrl: String,
     forceSports: Boolean = false
 ): List<TVChannel> {
-
-    val connection =
-        URL(playlistUrl).openConnection() as HttpURLConnection
-
-    connection.requestMethod = "GET"
+    val connection = URL(playlistUrl).openConnection() as HttpURLConnection
     connection.connectTimeout = 20000
     connection.readTimeout = 45000
     connection.instanceFollowRedirects = true
-
-    connection.setRequestProperty(
-        "User-Agent",
-        "ALLAL-TV Android App"
-    )
+    connection.setRequestProperty("User-Agent", "ALLAL-TV Android")
 
     return try {
         connection.inputStream.bufferedReader(Charsets.UTF_8).use {
@@ -174,299 +136,346 @@ private fun downloadPlaylist(
 
 class MainActivity : ComponentActivity() {
 
-    private fun hideSystemBars() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+    fun setImmersive(enabled: Boolean) {
+        WindowCompat.setDecorFitsSystemWindows(window, !enabled)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
 
-        WindowInsetsControllerCompat(
-            window,
-            window.decorView
-        ).apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-
-            systemBarsBehavior =
-                WindowInsetsControllerCompat
-                    .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (enabled) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        hideSystemBars()
-
-        setContent {
-            ALLALTVApp()
-        }
+        setImmersive(true)
+        setContent { ALLALTVApp() }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-
-        if (hasFocus) hideSystemBars()
+        if (hasFocus) setImmersive(true)
     }
 }
 
 @Composable
 fun ALLALTVApp() {
+    val context = LocalContext.current
+    val activity = context as? Activity
 
-    var channels by remember {
-        mutableStateOf<List<TVChannel>>(emptyList())
-    }
+    var channels by remember { mutableStateOf<List<TVChannel>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var selectedChannelUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCategory by rememberSaveable { mutableStateOf("الكل") }
+    var selectedTab by rememberSaveable { mutableStateOf("الرئيسية") }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    var favoriteUrls by rememberSaveable { mutableStateOf("") }
+    var drawerOpen by remember { mutableStateOf(false) }
 
-    var loading by remember {
-        mutableStateOf(true)
-    }
-
-    var loadMessage by remember {
-        mutableStateOf("جاري تحميل القنوات الرياضية...")
-    }
-
-    var selectedChannelUrl by rememberSaveable {
-        mutableStateOf<String?>(null)
-    }
-
-    val selectedChannel = channels.firstOrNull {
-        it.url == selectedChannelUrl
-    }
-
-    var selectedCategory by rememberSaveable {
-        mutableStateOf("الكل")
-    }
-
-    var searchText by rememberSaveable {
-        mutableStateOf("")
-    }
-
-    var selectedTab by rememberSaveable {
-        mutableStateOf("الرئيسية")
-    }
-
-    var favoriteUrls by rememberSaveable {
-        mutableStateOf("")
-    }
-
-    val favorites = favoriteUrls
-        .split("\n")
-        .filter { it.isNotBlank() }
-        .toSet()
-
+    val favorites = favoriteUrls.split("\n").filter { it.isNotBlank() }.toSet()
+    val selectedChannel = channels.firstOrNull { it.url == selectedChannelUrl }
     val configuration = LocalConfiguration.current
-
-    val gridColumns =
-        if (
-            configuration.orientation ==
-            Configuration.ORIENTATION_LANDSCAPE
-        ) 5 else 3
+    val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
 
     LaunchedEffect(Unit) {
-
-        val loadedChannels = withContext(Dispatchers.IO) {
-
+        val loaded = withContext(Dispatchers.IO) {
             val sports = runCatching {
                 downloadPlaylist(SPORTS_PLAYLIST, true)
             }.getOrDefault(emptyList())
 
-            val world = runCatching {
+            val entertainment = runCatching {
                 downloadPlaylist(WORLD_PLAYLIST)
             }.getOrDefault(emptyList())
 
-            (sports + world).distinctBy {
-                it.url ?: it.name.lowercase()
-            }
+            (sports + entertainment)
+                .distinctBy { it.url }
+                .sortedBy { if (it.category == "رياضة") 0 else 1 }
         }
-
-        channels = loadedChannels.sortedBy {
-            if (it.category == "رياضة") 0 else 1
-        }
-
+        channels = loaded
         loading = false
-
-        loadMessage = if (loadedChannels.isEmpty()) {
-            "تعذر تحميل القنوات. تحقق من الإنترنت وحاول مجدداً."
-        } else {
-            "تم تحميل ${loadedChannels.size} قناة"
-        }
     }
 
     BackHandler(
-        enabled = selectedChannelUrl != null ||
-            selectedTab != "الرئيسية"
+        enabled = selectedChannelUrl != null || drawerOpen || selectedTab != "الرئيسية"
     ) {
-        if (selectedChannelUrl != null) {
-            selectedChannelUrl = null
-        } else {
-            selectedTab = "الرئيسية"
+        when {
+            selectedChannelUrl != null -> selectedChannelUrl = null
+            drawerOpen -> drawerOpen = false
+            else -> selectedTab = "الرئيسية"
         }
     }
 
     CompositionLocalProvider(
         LocalLayoutDirection provides LayoutDirection.Rtl
     ) {
-
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Navy
-        ) {
-
+        Surface(modifier = Modifier.fillMaxSize(), color = Navy) {
             if (selectedChannel != null) {
-
                 PlayerScreen(
                     channel = selectedChannel,
-                    onBack = {
-                        selectedChannelUrl = null
-                    }
+                    onBack = { selectedChannelUrl = null }
                 )
-
             } else {
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color(0xFF0B263B),
-                                    Navy,
-                                    Color(0xFF06101D)
-                                )
+                ModalNavigationDrawer(
+                    drawerState = rememberDrawerState(
+                        if (drawerOpen) DrawerValue.Open else DrawerValue.Closed
+                    ),
+                    gesturesEnabled = true,
+                    drawerContent = {
+                        ModalDrawerSheet(
+                            drawerContainerColor = Color(0xFF10263A),
+                            modifier = Modifier.width(285.dp)
+                        ) {
+                            Spacer(Modifier.height(25.dp))
+                            Text(
+                                "ALLAL TV",
+                                color = Green,
+                                fontSize = 25.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(20.dp)
                             )
-                        )
-                ) {
+                            Divider(color = CardColor)
 
-                    Header(
-                        searchText = searchText,
-                        onSearchChange = {
-                            searchText = it
-                        }
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                    ) {
-
-                        when (selectedTab) {
-
-                            "الرئيسية" -> {
-
-                                Column(
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-
-                                    CategoryBar(
-                                        selectedCategory = selectedCategory,
-                                        onSelect = {
-                                            selectedCategory = it
+                            listOf(
+                                "الرئيسية",
+                                "الرياضة",
+                                "الترفيه",
+                                "المباريات",
+                                "المفضلة",
+                                "الإعدادات"
+                            ).forEach { item ->
+                                NavigationDrawerItem(
+                                    label = {
+                                        Text(item, color = White)
+                                    },
+                                    selected = selectedTab == item,
+                                    onClick = {
+                                        selectedTab = when (item) {
+                                            "الرياضة" -> "الرئيسية"
+                                            "الترفيه" -> "الرئيسية"
+                                            else -> item
                                         }
+                                        selectedCategory = when (item) {
+                                            "الرياضة" -> "رياضة"
+                                            "الترفيه" -> "ترفيه"
+                                            else -> "الكل"
+                                        }
+                                        drawerOpen = false
+                                    },
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = Color(0xFF194C45),
+                                        unselectedContainerColor = Color.Transparent
                                     )
+                                )
+                            }
 
-                                    val filteredChannels =
-                                        channels.filter {
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "جميع الحقوق محفوظة © ALLAL TV",
+                                color = Muted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(18.dp)
+                            )
+                        }
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Navy)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0B2033))
+                                .padding(horizontal = 15.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "☰",
+                                color = Green,
+                                fontSize = 27.sp,
+                                modifier = Modifier.clickable {
+                                    drawerOpen = true
+                                }
+                            )
+                            Spacer(Modifier.width(15.dp))
+                            Text(
+                                "ALLAL ",
+                                color = White,
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                "TV",
+                                color = Green,
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text("● مباشر", color = Green, fontSize = 12.sp)
+                        }
 
-                                            val categoryMatches =
-                                                selectedCategory == "الكل" ||
-                                                it.category == selectedCategory
-
-                                            val searchMatches =
-                                                it.name.contains(
-                                                    searchText,
-                                                    ignoreCase = true
-                                                ) ||
-                                                it.category.contains(
-                                                    searchText,
-                                                    ignoreCase = true
-                                                )
-
-                                            categoryMatches && searchMatches
-                                        }
-
-                                    ChannelGrid(
-                                        channels = filteredChannels,
-                                        loading = loading,
-                                        loadMessage = loadMessage,
-                                        title = "القنوات الرياضية والمميزة",
-                                        favorites = favorites,
-                                        columns = gridColumns,
-
-                                        onFavorite = { url ->
-
-                                            val updated =
-                                                if (favorites.contains(url)) {
-                                                    favorites - url
-                                                } else {
-                                                    favorites + url
-                                                }
-
-                                            favoriteUrls =
-                                                updated.joinToString("\n")
-                                        },
-
-                                        onChannelClick = {
-                                            selectedChannelUrl = it.url
-                                        }
+                        if (selectedTab == "الرئيسية") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(CardColor)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("⌕", color = Green, fontSize = 23.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Box(Modifier.weight(1f)) {
+                                    if (searchText.isEmpty()) {
+                                        Text("ابحث عن قناة...", color = Muted, fontSize = 13.sp)
+                                    }
+                                    BasicTextField(
+                                        value = searchText,
+                                        onValueChange = { searchText = it },
+                                        singleLine = true,
+                                        cursorBrush = SolidColor(Green),
+                                        textStyle = TextStyle(color = White, fontSize = 14.sp)
+                                    )
+                                }
+                                if (searchText.isNotEmpty()) {
+                                    Text(
+                                        "×",
+                                        color = White,
+                                        modifier = Modifier.clickable { searchText = "" }
                                     )
                                 }
                             }
+                        }
 
-                            "المفضلة" -> {
-
-                                val favoriteChannels =
-                                    channels.filter {
-                                        it.url != null &&
-                                        favorites.contains(it.url)
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            when (selectedTab) {
+                                "الرئيسية" -> {
+                                    val shown = channels.filter { channel ->
+                                        (selectedCategory == "الكل" ||
+                                            channel.category == selectedCategory) &&
+                                            (channel.name.contains(searchText, true) ||
+                                                channel.category.contains(searchText, true))
                                     }
 
-                                ChannelGrid(
-                                    channels = favoriteChannels,
-                                    loading = loading,
-                                    loadMessage = loadMessage,
-                                    title = "قنواتك المفضلة",
-                                    favorites = favorites,
-                                    columns = gridColumns,
+                                    Column(Modifier.fillMaxSize()) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            listOf("الكل", "رياضة", "ترفيه").forEach { category ->
+                                                val active = selectedCategory == category
+                                                Box(
+                                                    Modifier
+                                                        .clip(RoundedCornerShape(20.dp))
+                                                        .background(if (active) Green else CardColor)
+                                                        .clickable { selectedCategory = category }
+                                                        .padding(horizontal = 17.dp, vertical = 10.dp)
+                                                ) {
+                                                    Text(
+                                                        category,
+                                                        color = if (active) Navy else White,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
+                                            }
+                                        }
 
-                                    onFavorite = { url ->
-                                        favoriteUrls =
-                                            (favorites - url).joinToString("\n")
-                                    },
+                                        Text(
+                                            if (selectedCategory == "الكل") "القنوات الرياضية والترفيهية"
+                                            else "قنوات $selectedCategory",
+                                            color = White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            modifier = Modifier.padding(15.dp)
+                                        )
 
-                                    onChannelClick = {
-                                        selectedChannelUrl = it.url
+                                        if (loading) {
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                CircularProgressIndicator(color = Green)
+                                            }
+                                        } else {
+                                            ChannelGrid(
+                                                channels = shown,
+                                                favorites = favorites,
+                                                columns = columns,
+                                                onFavorite = { url ->
+                                                    favoriteUrls = (if (favorites.contains(url))
+                                                        favorites - url else favorites + url
+                                                    ).joinToString("\n")
+                                                },
+                                                onChannelClick = { selectedChannelUrl = it.url }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                "المفضلة" -> {
+                                    ChannelGrid(
+                                        channels = channels.filter { favorites.contains(it.url) },
+                                        favorites = favorites,
+                                        columns = columns,
+                                        onFavorite = { url ->
+                                            favoriteUrls = (favorites - url).joinToString("\n")
+                                        },
+                                        onChannelClick = { selectedChannelUrl = it.url }
+                                    )
+                                }
+
+                                "المباريات" -> MatchesPage(
+                                    onWatchSports = {
+                                        selectedCategory = "رياضة"
+                                        selectedTab = "الرئيسية"
                                     }
                                 )
-                            }
 
-                            "الأحداث" -> {
-                                DestinationPage(
-                                    tab = selectedTab,
-                                    channelCount = channels.size
-                                )
-                            }
-
-                            "المباريات" -> {
-                                MatchesPage(
+                                "الإعدادات" -> SettingsPage()
+                                else -> MatchesPage(
                                     onWatchSports = {
                                         selectedCategory = "رياضة"
                                         selectedTab = "الرئيسية"
                                     }
                                 )
                             }
+                        }
 
-                            "إعدادات" -> {
-                                DestinationPage(
-                                    tab = selectedTab,
-                                    channelCount = channels.size
-                                )
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(Color(0xFF091827))
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            listOf(
+                                "الرئيسية" to "⌂",
+                                "المباريات" to "⚽",
+                                "المفضلة" to "♡",
+                                "الإعدادات" to "⚙"
+                            ).forEach { item ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable {
+                                        selectedTab = item.first
+                                    }.padding(horizontal = 8.dp)
+                                ) {
+                                    Text(
+                                        item.second,
+                                        color = if (selectedTab == item.first) Green else Muted,
+                                        fontSize = 21.sp
+                                    )
+                                    Text(
+                                        item.first,
+                                        color = if (selectedTab == item.first) Green else Muted,
+                                        fontSize = 10.sp
+                                    )
+                                }
                             }
                         }
                     }
-
-                    BottomNavigationBar(
-                        selectedTab = selectedTab,
-                        onSelect = {
-                            selectedTab = it
-                        }
-                    )
                 }
             }
         }
@@ -474,321 +483,76 @@ fun ALLALTVApp() {
 }
 
 @Composable
-fun Header(
-    searchText: String,
-    onSearchChange: (String) -> Unit
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        Color(0xFF102D43),
-                        Color(0xFF071626)
-                    )
-                )
-            )
-    ) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Green),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "A",
-                    color = Navy,
-                    fontSize = 29.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Spacer(Modifier.width(10.dp))
-
-            Column {
-
-                Row {
-                    Text(
-                        "ALLAL ",
-                        color = White,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Black
-                    )
-
-                    Text(
-                        "TV",
-                        color = Green,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-
-                Text(
-                    "LIVE TELEVISION",
-                    color = Green,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            Text("عالمي", color = White, fontSize = 11.sp)
-            Spacer(Modifier.width(6.dp))
-            Text("●", color = Green, fontSize = 12.sp)
-            Spacer(Modifier.width(5.dp))
-            Text("مباشر", color = White, fontSize = 11.sp)
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 13.dp,
-                    end = 13.dp,
-                    bottom = 11.dp
-                )
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF1A3048))
-                .padding(horizontal = 13.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Text(
-                "⌕",
-                color = Green,
-                fontSize = 24.sp
-            )
-
-            Spacer(Modifier.width(9.dp))
-
-            Box(
-                modifier = Modifier.weight(1f)
-            ) {
-
-                if (searchText.isEmpty()) {
-                    Text(
-                        "ابحث عن قناة أو بلد...",
-                        color = Muted,
-                        fontSize = 12.sp
-                    )
-                }
-
-                BasicTextField(
-                    value = searchText,
-                    onValueChange = onSearchChange,
-                    singleLine = true,
-                    cursorBrush = SolidColor(Green),
-                    textStyle = TextStyle(
-                        color = White,
-                        fontSize = 13.sp
-                    )
-                )
-            }
-
-            if (searchText.isNotEmpty()) {
-                Text(
-                    "×",
-                    color = Muted,
-                    fontSize = 21.sp,
-                    modifier = Modifier.clickable {
-                        onSearchChange("")
-                    }
-                )
-            }
-        }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color.Transparent,
-                            Green,
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-    }
-}
-
-@Composable
-fun CategoryBar(
-    selectedCategory: String,
-    onSelect: (String) -> Unit
-) {
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-
-        listOf(
-            "رياضة",
-            "أخبار",
-            "ترفيه",
-            "عالمية"
-        ).forEach { category ->
-
-            val active = selectedCategory == category
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (active) Green else CardColor)
-                    .clickable {
-                        onSelect(if (active) "الكل" else category)
-                    }
-                    .padding(horizontal = 12.dp, vertical = 9.dp)
-            ) {
-
-                Text(
-                    category,
-                    color = if (active) Navy else White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(
-                    if (selectedCategory == "الكل") Green else CardColor
-                )
-                .clickable {
-                    onSelect("الكل")
-                }
-                .padding(horizontal = 12.dp, vertical = 9.dp)
-        ) {
-
-            Text(
-                "الكل",
-                color = if (selectedCategory == "الكل") Navy else White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun ChannelGrid(
+private fun ChannelGrid(
     channels: List<TVChannel>,
-    loading: Boolean,
-    loadMessage: String,
-    title: String,
     favorites: Set<String>,
     columns: Int,
     onFavorite: (String) -> Unit,
     onChannelClick: (TVChannel) -> Unit
 ) {
-
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Text(
-                title,
-                color = White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            Text(
-                if (loading) "تحميل..." else "${channels.size} قناة",
-                color = Green,
-                fontSize = 11.sp
-            )
+    if (channels.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("لا توجد قنوات متاحة في هذا التصنيف", color = Muted)
         }
-
-        if (loading || channels.isEmpty()) {
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(channels, key = { it.url }) { channel ->
                 Column(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CardColor)
+                        .clickable { onChannelClick(channel) }
+                        .padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
-                    if (loading) {
-                        CircularProgressIndicator(color = Green)
-                    }
-
-                    Text(
-                        if (loading) loadMessage
-                        else "لا توجد قنوات هنا حالياً",
-                        color = Muted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
-        } else {
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(
-                    horizontal = 13.dp,
-                    vertical = 8.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-
-                items(
-                    items = channels,
-                    key = { it.url ?: it.name }
-                ) { channel ->
-
-                    ChannelCard(
-                        channel = channel,
-                        isFavorite = channel.url != null &&
-                            favorites.contains(channel.url),
-
-                        onFavorite = {
-                            channel.url?.let(onFavorite)
-                        },
-
-                        onClick = {
-                            onChannelClick(channel)
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .height(78.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!channel.logo.isNullOrBlank()) {
+                            AsyncImage(
+                                model = channel.logo,
+                                contentDescription = channel.name,
+                                modifier = Modifier.fillMaxSize().padding(7.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Text("▶", color = Green, fontSize = 30.sp)
                         }
+                    }
+                    Text(
+                        channel.name,
+                        color = White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 7.dp)
                     )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(channel.category, color = Muted, fontSize = 9.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (favorites.contains(channel.url)) "♥" else "♡",
+                            color = Green,
+                            fontSize = 19.sp,
+                            modifier = Modifier.clickable {
+                                onFavorite(channel.url)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -796,365 +560,101 @@ fun ChannelGrid(
 }
 
 @Composable
-fun ChannelCard(
-    channel: TVChannel,
-    isFavorite: Boolean,
-    onFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-
+private fun MatchesPage(onWatchSports: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(15.dp))
-            .background(CardColor)
-            .clickable(onClick = onClick)
-            .padding(7.dp),
+        Modifier.fillMaxSize().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(76.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White),
-            contentAlignment = Alignment.Center
-        ) {
-
-            if (!channel.logo.isNullOrBlank()) {
-
-                AsyncImage(
-                    model = channel.logo,
-                    contentDescription = channel.name,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(7.dp),
-                    contentScale = ContentScale.Fit
-                )
-
-            } else {
-
-                Text(
-                    "▶",
-                    color = Green,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-
-        Text(
-            channel.name,
-            color = White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 7.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Text(
-                channel.category,
-                color = Muted,
-                fontSize = 9.sp,
-                modifier = Modifier.weight(1f)
-            )
-
-            Text(
-                if (isFavorite) "♥" else "♡",
-                color = if (isFavorite) Green else Muted,
-                fontSize = 19.sp,
-                modifier = Modifier.clickable {
-                    onFavorite()
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun DestinationPage(
-    tab: String,
-    channelCount: Int
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
         Spacer(Modifier.height(25.dp))
-
-        Text(
-            when (tab) {
-                "الأحداث" -> "الأحداث الرياضية"
-                "المباريات" -> "المباريات"
-                else -> "إعدادات ALLAL TV"
-            },
-            color = White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-
+        Text("المباريات", color = White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(20.dp))
-
-        when (tab) {
-
-            "الأحداث" -> {
-
-                Text(
-                    "الأحداث الرياضية",
-                    color = Green,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "لا توجد أحداث متاحة حالياً.",
-                    color = Muted,
-                    fontSize = 13.sp
-                )
-            }
-
-            "المباريات" -> {
-
-                Text(
-                    "المباريات والنتائج",
-                    color = Green,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "سيتم عرض المباريات عند ربط مصدر بيانات النتائج.",
-                    color = Muted,
-                    fontSize = 13.sp
-                )
-            }
-
-            "إعدادات" -> {
-
-                Text(
-                    "عدد القنوات المحمّلة: $channelCount",
-                    color = Muted,
-                    fontSize = 14.sp
-                )
-
-                Spacer(Modifier.height(25.dp))
-
-                Text(
-                    "تحديث التطبيق",
-                    color = White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                UpdateSection()
-            }
-        }
-    }
-}
-
-@Composable
-fun MatchesPage(
-    onWatchSports: () -> Unit
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        Spacer(Modifier.height(25.dp))
-
         Text(
-            "المباريات",
-            color = White,
-            fontSize = 23.sp,
+            "قسم المباريات",
+            color = Green,
+            fontSize = 19.sp,
             fontWeight = FontWeight.Bold
         )
-
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "سيتم عرض المواعيد والنتائج عند ربط مصدر بيانات رياضي مباشر.",
+            color = Muted,
+            fontSize = 13.sp
+        )
         Spacer(Modifier.height(25.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(CardColor)
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-
-                Text("⚽", fontSize = 42.sp)
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "جدول المباريات والنتائج",
-                    color = Green,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "سيتم عرض المباريات ومواعيدها ونتائجها عند ربط مصدر بيانات رياضي مباشر.",
-                    color = Muted,
-                    fontSize = 13.sp,
-                    lineHeight = 21.sp
-                )
-            }
-        }
-
-        Spacer(Modifier.height(25.dp))
-
         Button(
             onClick = onWatchSports,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Green,
-                contentColor = Navy
-            ),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
+            colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Navy)
         ) {
-
-            Text(
-                "مشاهدة القنوات الرياضية",
-                fontWeight = FontWeight.Bold
-            )
+            Text("مشاهدة القنوات الرياضية")
         }
+    }
+}
+
+@Composable
+private fun SettingsPage() {
+    Column(
+        Modifier.fillMaxSize().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("إعدادات ALLAL TV", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(25.dp))
+        Text("تحديث التطبيق", color = Green, fontSize = 17.sp)
+        Spacer(Modifier.height(12.dp))
+        UpdateSection()
     }
 }
 
 @Composable
 fun UpdateSection() {
-
-    val context = LocalContext.current
-    val activity = context as? Activity
-
-    var updateInfo by remember {
-        mutableStateOf<UpdateManager.UpdateInfo?>(null)
-    }
-
-    var status by remember {
-        mutableStateOf("تحقق من وجود إصدار جديد")
-    }
-
-    var checking by remember {
-        mutableStateOf(false)
-    }
-
-    var showDialog by remember {
-        mutableStateOf(false)
-    }
+    val activity = LocalContext.current as? Activity
+    var info by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+    var status by remember { mutableStateOf("تحقق من وجود إصدار جديد") }
+    var checking by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
+        Modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                enabled = !checking && activity != null
-            ) {
-
+            .background(CardColor)
+            .clickable(enabled = !checking && activity != null) {
                 checking = true
-                updateInfo = null
                 status = "جاري البحث عن تحديث..."
-
-                activity?.let { currentActivity ->
-
-                    UpdateManager.checkForUpdate(currentActivity) {
-                        info, message ->
-
-                        updateInfo = info
+                info = null
+                activity?.let { current ->
+                    UpdateManager.checkForUpdate(current) { update, message ->
+                        info = update
                         status = message
                         checking = false
                         showDialog = true
                     }
                 }
             }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        Text(
-            if (checking) "…" else "⟳",
-            color = Green,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            "التحقق من التحديثات",
-            color = Muted,
-            fontSize = 11.sp
-        )
+        Text(if (checking) "…" else "⟳", color = Green, fontSize = 27.sp)
+        Text("التحقق من التحديثات", color = White, fontSize = 12.sp)
     }
 
     if (showDialog) {
-
         AlertDialog(
-            onDismissRequest = {
-                showDialog = false
-            },
-
-            title = {
-                Text("تحديث ALLAL TV")
-            },
-
-            text = {
-                Text(status)
-            },
-
+            onDismissRequest = { showDialog = false },
+            title = { Text("تحديث ALLAL TV") },
+            text = { Text(status) },
             confirmButton = {
-
-                if (updateInfo != null) {
-
-                    TextButton(
-                        onClick = {
-
-                            activity?.let { currentActivity ->
-
-                                UpdateManager.downloadAndInstall(
-                                    currentActivity,
-                                    updateInfo!!.apkUrl
-                                ) { message ->
-                                    status = message
-                                }
+                if (info != null) {
+                    TextButton(onClick = {
+                        activity?.let { current ->
+                            UpdateManager.downloadAndInstall(current, info!!.apkUrl) { message ->
+                                status = message
                             }
-
-                            showDialog = false
                         }
-                    ) {
+                        showDialog = false
+                    }) {
                         Text("تحميل وتثبيت")
                     }
-
                 } else {
-
-                    TextButton(
-                        onClick = {
-                            showDialog = false
-                        }
-                    ) {
+                    TextButton(onClick = { showDialog = false }) {
                         Text("حسناً")
                     }
                 }
@@ -1164,239 +664,103 @@ fun UpdateSection() {
 }
 
 @Composable
-fun BottomNavigationBar(
-    selectedTab: String,
-    onSelect: (String) -> Unit
-) {
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF091827))
-            .padding(horizontal = 3.dp, vertical = 7.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-
-        listOf(
-            "الرئيسية" to "⌂",
-            "الأحداث" to "▦",
-            "المباريات" to "⚽",
-            "المفضلة" to "♡",
-            "إعدادات" to "⚙"
-        ).forEach { item ->
-
-            val label = item.first
-            val symbol = item.second
-            val active = selectedTab == label
-
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        onSelect(label)
-                    }
-                    .padding(horizontal = 7.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-
-                Text(
-                    symbol,
-                    color = if (active) Green else Muted,
-                    fontSize = 21.sp
-                )
-
-                Text(
-                    label,
-                    color = if (active) Green else Muted,
-                    fontSize = 9.sp
-                )
-            }
-        }
-    }
-}
-
-// ==========================================
-// مشغل الفيديو الجديد - ملء الشاشة تلقائياً
-// ==========================================
-
-@Composable
 fun PlayerScreen(
     channel: TVChannel,
     onBack: () -> Unit
 ) {
-
     val context = LocalContext.current
+    val activity = context as? Activity
+    val mainActivity = activity as? MainActivity
 
-    var retryCount by remember(channel.url) {
-        mutableIntStateOf(0)
-    }
+    var errorMessage by remember(channel.url) { mutableStateOf<String?>(null) }
+    var retryCount by remember(channel.url) { mutableIntStateOf(0) }
 
-    var playbackError by remember(channel.url, retryCount) {
-        mutableStateOf<String?>(null)
+    DisposableEffect(channel.url) {
+        val oldOrientation = activity?.requestedOrientation
+        mainActivity?.setImmersive(true)
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        onDispose {
+            activity?.requestedOrientation =
+                oldOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            mainActivity?.setImmersive(true)
+        }
     }
 
     val player = remember(channel.url, retryCount) {
-
-        channel.url?.let { url ->
-
-            runCatching {
-
-                ExoPlayer.Builder(context)
-                    .build()
-                    .apply {
-                        setMediaItem(MediaItem.fromUri(url))
-                        playWhenReady = true
-                        prepare()
-                    }
-
-            }.getOrNull()
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(channel.url))
+            playWhenReady = true
+            prepare()
         }
     }
 
     DisposableEffect(player) {
-
         val listener = object : Player.Listener {
-
-            override fun onPlayerError(
-                error: PlaybackException
-            ) {
-
-                playbackError =
-                    error.message ?: "تعذر تشغيل القناة"
+            override fun onPlayerError(error: PlaybackException) {
+                errorMessage = error.message ?: "تعذر تشغيل القناة"
             }
 
-            override fun onPlaybackStateChanged(
-                playbackState: Int
-            ) {
-
-                if (playbackState == Player.STATE_READY) {
-                    playbackError = null
-                }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) errorMessage = null
             }
         }
-
-        player?.addListener(listener)
-
-        if (player == null) {
-            playbackError = "رابط القناة غير متوفر"
-        }
-
+        player.addListener(listener)
         onDispose {
-            player?.removeListener(listener)
-            player?.release()
+            player.removeListener(listener)
+            player.release()
         }
     }
 
-    BackHandler {
-        onBack()
-    }
+    BackHandler { onBack() }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+        Modifier.fillMaxSize().background(Color.Black)
     ) {
-
-        if (player != null) {
-
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-
-                factory = { ctx ->
-
-                    PlayerView(ctx).apply {
-
-                        this.player = player
-
-                        // إخفاء أزرار التحكم
-                        useController = false
-
-                        // ملء الشاشة
-                        resizeMode =
-                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-
-                        keepScreenOn = true
-
-                        // إخفاء مؤشر التحميل
-                        setShowBuffering(
-                            PlayerView.SHOW_BUFFERING_NEVER
-                        )
-
-                        // خلفية سوداء
-                        setShutterBackgroundColor(
-                            android.graphics.Color.BLACK
-                        )
-                    }
-                },
-
-                update = { view ->
-
-                    view.player = player
-                    view.useController = false
-                    view.keepScreenOn = true
-
-                    view.resizeMode =
-                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = player
+                    useController = true
+                    controllerAutoShow = true
+                    controllerShowTimeoutMs = 3500
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    keepScreenOn = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setShutterBackgroundColor(android.graphics.Color.BLACK)
                 }
-            )
-        }
+            },
+            update = { view ->
+                view.player = player
+                view.useController = true
+                view.keepScreenOn = true
+                view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+        )
 
-        // لا شعار ولا بانر ولا مؤشر تحميل
-
-        if (playbackError != null) {
-
+        if (errorMessage != null) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(24.dp),
-
+                Modifier.align(Alignment.Center).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                Text(
-                    "تعذر تشغيل القناة",
-                    color = Color.White,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    playbackError ?: "",
-                    color = Color.LightGray,
-                    fontSize = 12.sp
-                )
-
-                Spacer(Modifier.height(20.dp))
-
+                Text("تعذر تشغيل القناة", color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                Text(errorMessage ?: "", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(15.dp))
                 Button(
                     onClick = {
-                        playbackError = null
+                        errorMessage = null
                         retryCount++
                     },
-
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Green,
-                        contentColor = Navy
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Navy)
                 ) {
-
-                    Text(
-                        "إعادة المحاولة",
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("إعادة المحاولة")
                 }
-
-                Spacer(Modifier.height(12.dp))
-
                 Text(
                     "رجوع",
-                    color = Color.White,
-                    modifier = Modifier.clickable {
-                        onBack()
-                    }
+                    color = White,
+                    modifier = Modifier.padding(12.dp).clickable { onBack() }
                 )
             }
         }
