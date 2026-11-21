@@ -38,6 +38,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -446,9 +448,11 @@ fun ALLALTVApp() {
                             }
 
                             "المباريات" -> {
-                                DestinationPage(
-                                    tab = selectedTab,
-                                    channelCount = channels.size
+                                MatchesPage(
+                                    onWatchSports = {
+                                        selectedCategory = "رياضة"
+                                        selectedTab = "الرئيسية"
+                                    }
                                 )
                             }
 
@@ -983,6 +987,87 @@ fun DestinationPage(
 }
 
 @Composable
+fun MatchesPage(
+    onWatchSports: () -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        Spacer(Modifier.height(25.dp))
+
+        Text(
+            "المباريات",
+            color = White,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(25.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CardColor)
+                .padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+
+                Text(
+                    "⚽",
+                    fontSize = 42.sp
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "جدول المباريات والنتائج",
+                    color = Green,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "سيتم عرض المباريات ومواعيدها ونتائجها عند ربط مصدر بيانات رياضي مباشر.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 21.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(25.dp))
+
+        Button(
+            onClick = onWatchSports,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Navy
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+
+            Text(
+                "مشاهدة القنوات الرياضية",
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
 fun UpdateSection() {
 
     val context = LocalContext.current
@@ -1156,26 +1241,96 @@ fun PlayerScreen(
 
     val context = LocalContext.current
 
-    val player = remember(channel.url) {
+    var retryCount by remember(channel.url) {
+        mutableIntStateOf(0)
+    }
+
+    var isBuffering by remember(channel.url, retryCount) {
+        mutableStateOf(true)
+    }
+
+    var playbackError by remember(channel.url, retryCount) {
+        mutableStateOf<String?>(null)
+    }
+
+    var isPlaying by remember(channel.url, retryCount) {
+        mutableStateOf(false)
+    }
+
+    val player = remember(channel.url, retryCount) {
 
         channel.url?.let { url ->
 
-            ExoPlayer.Builder(context)
-                .build()
-                .apply {
-
-                    setMediaItem(
-                        MediaItem.fromUri(url)
-                    )
-
-                    prepare()
-                    playWhenReady = true
-                }
+            runCatching {
+                ExoPlayer.Builder(context)
+                    .build()
+                    .apply {
+                        setMediaItem(MediaItem.fromUri(url))
+                        prepare()
+                        playWhenReady = true
+                    }
+            }.getOrNull()
         }
     }
 
     DisposableEffect(player) {
+
+        val listener = object : Player.Listener {
+
+            override fun onPlaybackStateChanged(
+                playbackState: Int
+            ) {
+
+                when (playbackState) {
+
+                    Player.STATE_BUFFERING -> {
+                        isBuffering = true
+                        playbackError = null
+                    }
+
+                    Player.STATE_READY -> {
+                        isBuffering = false
+                        playbackError = null
+                    }
+
+                    Player.STATE_ENDED -> {
+                        isBuffering = false
+                    }
+
+                    Player.STATE_IDLE -> {
+                        isBuffering = false
+                    }
+                }
+            }
+
+            override fun onIsPlayingChanged(
+                playing: Boolean
+            ) {
+                isPlaying = playing
+            }
+
+            override fun onPlayerError(
+                error: PlaybackException
+            ) {
+
+                isBuffering = false
+                isPlaying = false
+
+                playbackError =
+                    error.message
+                        ?: "تعذر تشغيل القناة. تحقق من رابط البث."
+            }
+        }
+
+        player?.addListener(listener)
+
+        if (player == null) {
+            isBuffering = false
+            playbackError = "تعذر إنشاء مشغل الفيديو."
+        }
+
         onDispose {
+            player?.removeListener(listener)
             player?.release()
         }
     }
@@ -1243,6 +1398,7 @@ fun PlayerScreen(
 
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
+
                     factory = { ctx ->
 
                         PlayerView(ctx).apply {
@@ -1253,15 +1409,96 @@ fun PlayerScreen(
                             resizeMode =
                                 AspectRatioFrameLayout.RESIZE_MODE_FIT
 
+                            keepScreenOn = true
+
                             setShowBuffering(
-                                PlayerView.SHOW_BUFFERING_WHEN_PLAYING
+                                PlayerView.SHOW_BUFFERING_NEVER
                             )
                         }
                     },
+
                     update = {
                         it.player = player
+                        it.keepScreenOn = true
                     }
                 )
+
+                if (isBuffering && playbackError == null) {
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Color.Black.copy(alpha = 0.78f)
+                            )
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+
+                        CircularProgressIndicator(
+                            color = Green
+                        )
+
+                        Spacer(Modifier.height(10.dp))
+
+                        Text(
+                            "جاري تحميل البث...",
+                            color = White,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                if (playbackError != null) {
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Color.Black.copy(alpha = 0.90f)
+                            )
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+
+                        Text(
+                            "تعذر تشغيل القناة",
+                            color = White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(Modifier.height(10.dp))
+
+                        Text(
+                            playbackError ?: "",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
+
+                        Spacer(Modifier.height(20.dp))
+
+                        Button(
+                            onClick = {
+                                playbackError = null
+                                isBuffering = true
+                                retryCount++
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Green,
+                                contentColor = Navy
+                            )
+                        ) {
+
+                            Text(
+                                "إعادة المحاولة",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     "ALLAL TV",
@@ -1275,7 +1512,10 @@ fun PlayerScreen(
                         .background(
                             Color.Black.copy(alpha = 0.85f)
                         )
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .padding(
+                            horizontal = 12.dp,
+                            vertical = 7.dp
+                        )
                 )
 
             } else {
@@ -1300,11 +1540,27 @@ fun PlayerScreen(
                     )
 
                     Text(
-                        "رابط القناة غير متوفر",
+                        playbackError ?: "رابط القناة غير متوفر",
                         color = Muted,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         modifier = Modifier.padding(top = 7.dp)
                     )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            retryCount++
+                            playbackError = null
+                            isBuffering = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Green,
+                            contentColor = Navy
+                        )
+                    ) {
+                        Text("إعادة المحاولة")
+                    }
                 }
             }
         }
@@ -1333,7 +1589,19 @@ fun PlayerScreen(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                "استمتع بمشاهدة البث المباشر",
+                when {
+                    playbackError != null ->
+                        "حدث خطأ أثناء تشغيل البث."
+
+                    isBuffering ->
+                        "يرجى الانتظار، جاري الاتصال بالقناة."
+
+                    isPlaying ->
+                        "القناة تعمل الآن."
+
+                    else ->
+                        "استمتع بمشاهدة البث المباشر."
+                },
                 color = Muted,
                 fontSize = 12.sp
             )
