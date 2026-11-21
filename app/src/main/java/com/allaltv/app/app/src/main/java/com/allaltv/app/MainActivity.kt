@@ -1,6 +1,7 @@
 package com.allaltv.app
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,7 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,7 +81,6 @@ private fun parseM3U(
     val groupRegex = Regex("""group-title="([^"]*)"""")
 
     for (rawLine in content.lineSequence()) {
-
         val line = rawLine.trim()
 
         if (line.startsWith("#EXTINF", ignoreCase = true)) {
@@ -194,7 +194,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
 
         hideSystemBars()
@@ -205,7 +204,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-
         super.onWindowFocusChanged(hasFocus)
 
         if (hasFocus) hideSystemBars()
@@ -256,6 +254,16 @@ fun ALLALTVApp() {
         .filter { it.isNotBlank() }
         .toSet()
 
+    // تحديد عدد الأعمدة حسب اتجاه الهاتف
+    val configuration = LocalConfiguration.current
+
+    val gridColumns =
+        if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            5
+        } else {
+            3
+        }
+
     LaunchedEffect(Unit) {
 
         val loadedChannels = withContext(Dispatchers.IO) {
@@ -290,7 +298,6 @@ fun ALLALTVApp() {
         enabled = selectedChannelUrl != null ||
             selectedTab != "الرئيسية"
     ) {
-
         if (selectedChannelUrl != null) {
             selectedChannelUrl = null
         } else {
@@ -339,7 +346,7 @@ fun ALLALTVApp() {
                         }
                     )
 
-                    BoxWithConstraints(
+                    Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -386,7 +393,7 @@ fun ALLALTVApp() {
                                         loadMessage = loadMessage,
                                         title = "القنوات الرياضية والمميزة",
                                         favorites = favorites,
-                                        columns = if (maxWidth > maxHeight) 5 else 3,
+                                        columns = gridColumns,
                                         onFavorite = { url ->
 
                                             val updated =
@@ -420,9 +427,8 @@ fun ALLALTVApp() {
                                     loadMessage = loadMessage,
                                     title = "قنواتك المفضلة",
                                     favorites = favorites,
-                                    columns = if (maxWidth > maxHeight) 5 else 3,
+                                    columns = gridColumns,
                                     onFavorite = { url ->
-
                                         favoriteUrls =
                                             (favorites - url).joinToString("\n")
                                     },
@@ -433,7 +439,6 @@ fun ALLALTVApp() {
                             }
 
                             "الأحداث" -> {
-
                                 DestinationPage(
                                     tab = selectedTab,
                                     channelCount = channels.size
@@ -441,7 +446,6 @@ fun ALLALTVApp() {
                             }
 
                             "المباريات" -> {
-
                                 DestinationPage(
                                     tab = selectedTab,
                                     channelCount = channels.size
@@ -449,7 +453,6 @@ fun ALLALTVApp() {
                             }
 
                             "إعدادات" -> {
-
                                 DestinationPage(
                                     tab = selectedTab,
                                     channelCount = channels.size
@@ -503,7 +506,6 @@ fun Header(
                     .background(Green),
                 contentAlignment = Alignment.Center
             ) {
-
                 Text(
                     "A",
                     color = Navy,
@@ -515,9 +517,7 @@ fun Header(
             Spacer(Modifier.width(10.dp))
 
             Column {
-
                 Row {
-
                     Text(
                         "ALLAL ",
                         color = White,
@@ -594,7 +594,6 @@ fun Header(
             ) {
 
                 if (searchText.isEmpty()) {
-
                     Text(
                         "ابحث عن قناة أو بلد...",
                         color = Muted,
@@ -615,7 +614,6 @@ fun Header(
             }
 
             if (searchText.isNotEmpty()) {
-
                 Text(
                     "×",
                     color = Muted,
@@ -653,10 +651,7 @@ fun CategoryBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = 12.dp,
-                vertical = 11.dp
-            ),
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
 
@@ -672,18 +667,11 @@ fun CategoryBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (active) Green else CardColor
-                    )
+                    .background(if (active) Green else CardColor)
                     .clickable {
-                        onSelect(
-                            if (active) "الكل" else category
-                        )
+                        onSelect(if (active) "الكل" else category)
                     }
-                    .padding(
-                        horizontal = 12.dp,
-                        vertical = 9.dp
-                    )
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
             ) {
 
                 Text(
@@ -704,10 +692,7 @@ fun CategoryBar(
                 .clickable {
                     onSelect("الكل")
                 }
-                .padding(
-                    horizontal = 12.dp,
-                    vertical = 9.dp
-                )
+                .padding(horizontal = 12.dp, vertical = 9.dp)
         ) {
 
             Text(
@@ -739,10 +724,7 @@ fun ChannelGrid(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 8.dp
-                ),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -756,8 +738,7 @@ fun ChannelGrid(
             Spacer(Modifier.weight(1f))
 
             Text(
-                if (loading) "تحميل..."
-                else "${channels.size} قناة",
+                if (loading) "تحميل..." else "${channels.size} قناة",
                 color = Green,
                 fontSize = 11.sp
             )
@@ -777,10 +758,7 @@ fun ChannelGrid(
                 ) {
 
                     if (loading) {
-
-                        CircularProgressIndicator(
-                            color = Green
-                        )
+                        CircularProgressIndicator(color = Green)
                     }
 
                     Text(
@@ -804,10 +782,8 @@ fun ChannelGrid(
                     horizontal = 13.dp,
                     vertical = 8.dp
                 ),
-                horizontalArrangement =
-                    Arrangement.spacedBy(10.dp),
-                verticalArrangement =
-                    Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
 
                 items(
@@ -1051,10 +1027,7 @@ fun UpdateSection() {
                     }
                 }
             }
-            .padding(
-                horizontal = 12.dp,
-                vertical = 8.dp
-            ),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
@@ -1097,7 +1070,6 @@ fun UpdateSection() {
                                     currentActivity,
                                     updateInfo!!.apkUrl
                                 ) { message ->
-
                                     status = message
                                 }
                             }
@@ -1105,7 +1077,6 @@ fun UpdateSection() {
                             showDialog = false
                         }
                     ) {
-
                         Text("تحميل وتثبيت")
                     }
 
@@ -1116,7 +1087,6 @@ fun UpdateSection() {
                             showDialog = false
                         }
                     ) {
-
                         Text("حسناً")
                     }
                 }
@@ -1135,10 +1105,7 @@ fun BottomNavigationBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF091827))
-            .padding(
-                horizontal = 3.dp,
-                vertical = 7.dp
-            ),
+            .padding(horizontal = 3.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1161,10 +1128,7 @@ fun BottomNavigationBar(
                     .clickable {
                         onSelect(label)
                     }
-                    .padding(
-                        horizontal = 7.dp,
-                        vertical = 4.dp
-                    ),
+                    .padding(horizontal = 7.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
@@ -1211,7 +1175,6 @@ fun PlayerScreen(
     }
 
     DisposableEffect(player) {
-
         onDispose {
             player?.release()
         }
@@ -1227,10 +1190,7 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Navy)
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 15.dp
-                ),
+                .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -1315,10 +1275,7 @@ fun PlayerScreen(
                         .background(
                             Color.Black.copy(alpha = 0.85f)
                         )
-                        .padding(
-                            horizontal = 12.dp,
-                            vertical = 7.dp
-                        )
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
                 )
 
             } else {
