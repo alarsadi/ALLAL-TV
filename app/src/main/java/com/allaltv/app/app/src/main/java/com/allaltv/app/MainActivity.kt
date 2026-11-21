@@ -27,7 +27,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
-import androidx.foundation.text.BasicTextField
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Brush
@@ -150,7 +150,9 @@ fun ALLALTVApp() {
 
                         BasicTextField(
                             value = searchText,
-                            onValueChange = { searchText = it },
+                            onValueChange = { newValue ->
+                                searchText = newValue
+                            },
                             singleLine = true,
                             cursorBrush = SolidColor(Green),
                             textStyle = TextStyle(
@@ -593,7 +595,6 @@ fun PlayerScreen(
                     }
                 )
 
-                // شعار التطبيق فوق شعار القناة
                 Text(
                     "ALLAL TV",
                     color = White,
