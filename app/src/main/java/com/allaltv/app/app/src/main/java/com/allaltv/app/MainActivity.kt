@@ -44,9 +44,9 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
-private val Navy = Color(0xFF081321)
-private val CardColor = Color(0xFF122337)
-private val Green = Color(0xFF00C985)
+private val Navy = Color(0xFF061426)
+private val CardColor = Color(0xFF142A40)
+private val Green = Color(0xFF00D995)
 private val White = Color(0xFFF5F8FC)
 private val Muted = Color(0xFF91A4B8)
 
@@ -179,7 +179,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hideSystemBars()
-
         setContent {
             ALLALTVApp()
         }
@@ -193,41 +192,24 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ALLALTVApp() {
-
     var channels by remember {
         mutableStateOf<List<TVChannel>>(emptyList())
     }
-
     var loading by remember { mutableStateOf(true) }
-
     var loadMessage by remember {
         mutableStateOf("جاري تحميل القنوات الرياضية...")
     }
-
     var selectedChannel by remember {
         mutableStateOf<TVChannel?>(null)
     }
-
-    var selectedCategory by remember {
-        mutableStateOf("الكل")
-    }
-
-    var searchText by remember {
-        mutableStateOf("")
-    }
-
-    var selectedTab by remember {
-        mutableStateOf("الرئيسية")
-    }
+    var selectedCategory by remember { mutableStateOf("الكل") }
+    var searchText by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf("الرئيسية") }
 
     LaunchedEffect(Unit) {
         val loadedChannels = withContext(Dispatchers.IO) {
-
             val sports = runCatching {
-                downloadPlaylist(
-                    SPORTS_PLAYLIST,
-                    forceSports = true
-                )
+                downloadPlaylist(SPORTS_PLAYLIST, true)
             }.getOrDefault(emptyList())
 
             val world = runCatching {
@@ -242,9 +224,7 @@ fun ALLALTVApp() {
         channels = loadedChannels.sortedBy {
             if (it.category == "رياضة") 0 else 1
         }
-
         loading = false
-
         loadMessage = if (loadedChannels.isEmpty()) {
             "تعذر تحميل القنوات. تحقق من الإنترنت وحاول مجدداً."
         } else {
@@ -264,157 +244,68 @@ fun ALLALTVApp() {
             color = Navy
         ) {
             if (selectedChannel != null) {
-
                 PlayerScreen(
                     channel = selectedChannel!!,
                     onBack = { selectedChannel = null }
                 )
-
             } else {
-
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Navy)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF0B263B),
+                                    Navy,
+                                    Color(0xFF06101D)
+                                )
+                            )
+                        )
                 ) {
-
-                    Header()
+                    Header(
+                        searchText = searchText,
+                        onSearchChange = { searchText = it }
+                    )
 
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                     ) {
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    horizontal = 18.dp,
-                                    vertical = 12.dp
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    "مرحباً بك في ALLAL TV",
-                                    color = White,
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Text(
-                                    "عالم من القنوات بين يديك",
-                                    color = Muted,
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            Text(
-                                "● مباشر",
-                                color = Green,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
                         SportsBanner()
 
-                        UpdateSection()
-
-                        BasicTextField(
-                            value = searchText,
-                            onValueChange = {
-                                searchText = it
-                            },
-                            singleLine = true,
-                            cursorBrush = SolidColor(Green),
-                            textStyle = TextStyle(
-                                color = White,
-                                fontSize = 14.sp
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    horizontal = 16.dp,
-                                    vertical = 7.dp
-                                )
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(CardColor)
-                                .padding(15.dp),
-                            decorationBox = { innerTextField ->
-                                Row(
-                                    verticalAlignment =
-                                        Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "⌕",
-                                        color = Green,
-                                        fontSize = 22.sp
-                                    )
-
-                                    Spacer(
-                                        modifier = Modifier.width(10.dp)
-                                    )
-
-                                    Box {
-                                        if (searchText.isEmpty()) {
-                                            Text(
-                                                "ابحث عن قناة أو بلد...",
-                                                color = Muted
-                                            )
-                                        }
-
-                                        innerTextField()
-                                    }
-                                }
-                            }
-                        )
-
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(
-                                    horizontal = 16.dp,
-                                    vertical = 7.dp
+                                    horizontal = 14.dp,
+                                    vertical = 10.dp
                                 ),
                             horizontalArrangement =
-                                Arrangement.spacedBy(8.dp)
+                                Arrangement.spacedBy(7.dp)
                         ) {
                             listOf(
-                                "الكل",
-                                "رياضة",
-                                "أخبار",
-                                "ترفيه",
-                                "عالمية"
+                                "الكل", "رياضة", "أخبار", "ترفيه", "عالمية"
                             ).forEach { category ->
-
-                                val active =
-                                    selectedCategory == category
-
+                                val active = selectedCategory == category
                                 Box(
                                     modifier = Modifier
-                                        .clip(
-                                            RoundedCornerShape(20.dp)
-                                        )
+                                        .clip(RoundedCornerShape(20.dp))
                                         .background(
-                                            if (active) Green
-                                            else CardColor
+                                            if (active) Green else CardColor
                                         )
                                         .clickable {
                                             selectedCategory = category
                                         }
                                         .padding(
-                                            horizontal = 13.dp,
+                                            horizontal = 11.dp,
                                             vertical = 9.dp
                                         )
                                 ) {
                                     Text(
                                         category,
                                         color = if (active) Navy else White,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -425,23 +316,20 @@ fun ALLALTVApp() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(
-                                    horizontal = 18.dp,
-                                    vertical = 8.dp
+                                    horizontal = 17.dp,
+                                    vertical = 7.dp
                                 ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 if (selectedCategory == "الكل")
                                     "القنوات الرياضية والمميزة"
-                                else
-                                    "قنوات $selectedCategory",
+                                else "قنوات $selectedCategory",
                                 color = White,
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
+                            Spacer(Modifier.weight(1f))
                             Text(
                                 if (loading) "تحميل..."
                                 else "${channels.size} قناة",
@@ -454,7 +342,6 @@ fun ALLALTVApp() {
                             val categoryMatches =
                                 selectedCategory == "الكل" ||
                                 it.category == selectedCategory
-
                             val searchMatches =
                                 it.name.contains(
                                     searchText,
@@ -464,12 +351,10 @@ fun ALLALTVApp() {
                                     searchText,
                                     ignoreCase = true
                                 )
-
                             categoryMatches && searchMatches
                         }
 
                         if (loading || filteredChannels.isEmpty()) {
-
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -485,22 +370,18 @@ fun ALLALTVApp() {
                                             color = Green
                                         )
                                     }
-
                                     Text(
                                         if (loading) loadMessage
                                         else if (channels.isEmpty())
                                             loadMessage
-                                        else
-                                            "لا توجد قنوات مطابقة",
+                                        else "لا توجد قنوات مطابقة",
                                         color = Muted,
                                         fontSize = 12.sp,
                                         modifier = Modifier.padding(12.dp)
                                     )
                                 }
                             }
-
                         } else {
-
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(3),
                                 modifier = Modifier
@@ -516,7 +397,7 @@ fun ALLALTVApp() {
                                     Arrangement.spacedBy(10.dp)
                             ) {
                                 items(filteredChannels) { channel ->
-                                    ChannelCard(channel = channel) {
+                                    ChannelCard(channel) {
                                         selectedChannel = channel
                                     }
                                 }
@@ -535,24 +416,158 @@ fun ALLALTVApp() {
 }
 
 @Composable
-fun SportsBanner() {
-    Box(
+fun Header(
+    searchText: String,
+    onSearchChange: (String) -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(145.dp)
-            .clip(RoundedCornerShape(22.dp))
             .background(
-                Brush.linearGradient(
+                Brush.horizontalGradient(
                     listOf(
-                        Color(0xFF164C58),
-                        Color(0xFF10253D),
-                        Color(0xFF091421)
+                        Color(0xFF102D43),
+                        Color(0xFF071626)
                     )
                 )
             )
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "☰",
+                color = White,
+                fontSize = 25.sp,
+                modifier = Modifier.padding(end = 9.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Green),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "▶",
+                    color = Navy,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            Spacer(Modifier.width(7.dp))
+            Column {
+                Row {
+                    Text(
+                        "ALLAL ",
+                        color = White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        "TV",
+                        color = Green,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                Text(
+                    "عالم التلفزيون بين يديك",
+                    color = Muted,
+                    fontSize = 8.sp
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text("●", color = Green, fontSize = 13.sp)
+        }
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF1A3048))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("⌕", color = Green, fontSize = 23.sp)
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f)) {
+                if (searchText.isEmpty()) {
+                    Text(
+                        "ابحث عن قناة أو بلد...",
+                        color = Muted,
+                        fontSize = 12.sp
+                    )
+                }
+                BasicTextField(
+                    value = searchText,
+                    onValueChange = onSearchChange,
+                    singleLine = true,
+                    cursorBrush = SolidColor(Green),
+                    textStyle = TextStyle(
+                        color = White,
+                        fontSize = 13.sp
+                    )
+                )
+            }
+            if (searchText.isNotEmpty()) {
+                Text(
+                    "×",
+                    color = Muted,
+                    fontSize = 20.sp,
+                    modifier = Modifier.clickable {
+                        onSearchChange("")
+                    }
+                )
+            }
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Green,
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+    }
+}
+
+@Composable
+fun SportsBanner() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 13.dp, vertical = 9.dp)
+            .height(142.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFF075B55),
+                        Color(0xFF123A52),
+                        Color(0xFF101C35)
+                    )
+                )
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .size(150.dp)
+                .align(Alignment.CenterEnd)
+                .clip(RoundedCornerShape(100.dp))
+                .background(Green.copy(alpha = 0.10f))
+        )
         Column(
             modifier = Modifier
                 .align(Alignment.CenterStart)
@@ -565,191 +580,102 @@ fun SportsBanner() {
                 fontWeight = FontWeight.Black,
                 letterSpacing = 2.sp
             )
-
             Text(
                 "عِش أجواء\nالمباريات مباشرة",
                 color = White,
-                fontSize = 22.sp,
+                fontSize = 21.sp,
                 fontWeight = FontWeight.Black,
-                lineHeight = 28.sp
+                lineHeight = 27.sp
             )
-
             Text(
                 "قنوات رياضية من العالم",
-                color = Muted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 5.dp)
+                color = Color(0xFFB6C9D8),
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
-
         Text(
             "⚽",
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 22.dp),
-            fontSize = 66.sp
+                .padding(end = 20.dp),
+            fontSize = 65.sp
         )
     }
 }
 
 @Composable
 fun UpdateSection() {
-
     val context = LocalContext.current
     val activity = context as? Activity
-
     var updateInfo by remember {
         mutableStateOf<UpdateManager.UpdateInfo?>(null)
     }
-
     var status by remember {
         mutableStateOf("تحقق من وجود إصدار جديد")
     }
-
-    var checking by remember {
-        mutableStateOf(false)
-    }
+    var checking by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = 18.dp,
-                vertical = 8.dp
-            )
-            .clip(RoundedCornerShape(15.dp))
-            .background(CardColor)
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        Text(
-            "تحديثات ALLAL TV",
-            color = White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            status,
-            color = Muted,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Button(
-            onClick = {
-                if (activity != null) {
-                    checking = true
-                    updateInfo = null
-                    status = "جاري البحث عن تحديث..."
-
-                    UpdateManager.checkForUpdate(activity) {
-                            info, message ->
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = !checking && activity != null) {
+                checking = true
+                updateInfo = null
+                status = "جاري البحث عن تحديث..."
+                activity?.let { currentActivity ->
+                    UpdateManager.checkForUpdate(currentActivity) {
+                        info, message ->
                         updateInfo = info
                         status = message
                         checking = false
+                        showDialog = true
                     }
                 }
-            },
-            enabled = !checking && activity != null,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Green,
-                contentColor = Navy
-            )
-        ) {
-            Text(
-                if (checking) "جاري البحث..."
-                else "التحقق من التحديثات"
-            )
-        }
-
-        updateInfo?.let { info ->
-            Button(
-                onClick = {
-                    activity?.let { currentActivity ->
-                        UpdateManager.downloadAndInstall(
-                            currentActivity,
-                            info.apkUrl
-                        ) { message ->
-                            status = message
-                        }
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2476D2),
-                    contentColor = White
-                )
-            ) {
-                Text("تحميل وتثبيت ${info.versionName}")
             }
-        }
-    }
-}
-
-@Composable
-fun Header() {
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        Color(0xFF102A3E),
-                        Color(0xFF0A1727)
-                    )
-                )
-            )
-            .padding(
-                horizontal = 18.dp,
-                vertical = 14.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(Green),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "A",
-                color = Navy,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
-
-        Spacer(modifier = Modifier.width(11.dp))
-
-        Column {
-            Text(
-                "ALLAL TV",
-                color = White,
-                fontSize = 21.sp,
-                fontWeight = FontWeight.Black
-            )
-
-            Text(
-                "LIVE TELEVISION",
-                color = Green,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
         Text(
-            "عالمي • مباشر",
-            color = Muted,
-            fontSize = 11.sp
+            if (checking) "…" else "⟳",
+            color = Green,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text("تحديث", color = Muted, fontSize = 8.sp)
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("تحديث ALLAL TV") },
+            text = { Text(status) },
+            confirmButton = {
+                if (updateInfo != null) {
+                    TextButton(
+                        onClick = {
+                            activity?.let { currentActivity ->
+                                UpdateManager.downloadAndInstall(
+                                    currentActivity,
+                                    updateInfo!!.apkUrl
+                                ) { message ->
+                                    status = message
+                                }
+                            }
+                            showDialog = false
+                        }
+                    ) {
+                        Text("تحميل وتثبيت")
+                    }
+                } else {
+                    TextButton(
+                        onClick = { showDialog = false }
+                    ) {
+                        Text("حسناً")
+                    }
+                }
+            }
         )
     }
 }
@@ -759,22 +685,20 @@ fun ChannelCard(
     channel: TVChannel,
     onClick: () -> Unit
 ) {
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF5F7FA))
+            .clip(RoundedCornerShape(15.dp))
+            .background(Color(0xFFF4F7FA))
             .clickable(onClick = onClick)
-            .padding(8.dp),
+            .padding(7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(76.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
@@ -796,7 +720,6 @@ fun ChannelCard(
                 )
             }
         }
-
         Text(
             channel.name,
             color = Color(0xFF152334),
@@ -806,7 +729,6 @@ fun ChannelCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 7.dp)
         )
-
         Text(
             channel.category,
             color = Color(0xFF617386),
@@ -822,18 +744,14 @@ fun BottomNavigationBar(
     selectedTab: String,
     onSelect: (String) -> Unit
 ) {
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0D1C2B))
-            .padding(
-                horizontal = 5.dp,
-                vertical = 8.dp
-            ),
-        horizontalArrangement = Arrangement.SpaceAround
+            .background(Color(0xFF091827))
+            .padding(horizontal = 3.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-
         listOf(
             "الرئيسية" to "⌂",
             "الأحداث" to "▣",
@@ -841,37 +759,28 @@ fun BottomNavigationBar(
             "المفضلة" to "♡",
             "إعدادات" to "⚙"
         ).forEach { item ->
-
             val label = item.first
             val symbol = item.second
-
             Column(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        onSelect(label)
-                    }
-                    .padding(
-                        horizontal = 8.dp,
-                        vertical = 3.dp
-                    ),
+                    .clickable { onSelect(label) }
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     symbol,
-                    color = if (selectedTab == label) Green
-                    else Muted,
+                    color = if (selectedTab == label) Green else Muted,
                     fontSize = 19.sp
                 )
-
                 Text(
                     label,
-                    color = if (selectedTab == label) Green
-                    else Muted,
-                    fontSize = 9.sp
+                    color = if (selectedTab == label) Green else Muted,
+                    fontSize = 8.sp
                 )
             }
         }
+        UpdateSection()
     }
 }
 
@@ -880,9 +789,7 @@ fun PlayerScreen(
     channel: TVChannel,
     onBack: () -> Unit
 ) {
-
     val context = LocalContext.current
-
     val player = remember(channel.url) {
         channel.url?.let { url ->
             ExoPlayer.Builder(context).build().apply {
@@ -904,29 +811,20 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Navy)
     ) {
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Navy)
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 15.dp
-                ),
+                .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Text(
                 "‹",
                 color = White,
                 fontSize = 34.sp,
-                modifier = Modifier.clickable {
-                    onBack()
-                }
+                modifier = Modifier.clickable { onBack() }
             )
-
-            Spacer(modifier = Modifier.width(15.dp))
-
+            Spacer(Modifier.width(15.dp))
             Column {
                 Text(
                     channel.name,
@@ -934,16 +832,13 @@ fun PlayerScreen(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-
                 Text(
                     "بث مباشر",
                     color = Green,
                     fontSize = 11.sp
                 )
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
+            Spacer(Modifier.weight(1f))
             Text(
                 "ALLAL TV",
                 color = Green,
@@ -959,9 +854,7 @@ fun PlayerScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-
             if (player != null) {
-
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
@@ -970,17 +863,13 @@ fun PlayerScreen(
                             useController = true
                             resizeMode =
                                 AspectRatioFrameLayout.RESIZE_MODE_FIT
-
                             setShowBuffering(
                                 PlayerView.SHOW_BUFFERING_WHEN_PLAYING
                             )
                         }
                     },
-                    update = {
-                        it.player = player
-                    }
+                    update = { it.player = player }
                 )
-
                 Text(
                     "ALLAL TV",
                     color = White,
@@ -990,35 +879,21 @@ fun PlayerScreen(
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(
-                            Color.Black.copy(alpha = 0.85f)
-                        )
-                        .padding(
-                            horizontal = 12.dp,
-                            vertical = 7.dp
-                        )
+                        .background(Color.Black.copy(alpha = 0.85f))
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
                 )
-
             } else {
-
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        "▶",
-                        color = Green,
-                        fontSize = 45.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
+                    Text("▶", color = Green, fontSize = 45.sp)
+                    Spacer(Modifier.height(14.dp))
                     Text(
                         "البث غير متوفر حالياً",
                         color = White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
-
                     Text(
                         "رابط القناة غير متوفر",
                         color = Muted,
@@ -1034,24 +909,19 @@ fun PlayerScreen(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-
             Text(
                 channel.name,
                 color = White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
+            Spacer(Modifier.height(6.dp))
             Text(
                 "مشغل ALLAL TV",
                 color = Green,
                 fontSize = 13.sp
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            Spacer(Modifier.height(12.dp))
             Text(
                 "استمتع بمشاهدة البث المباشر",
                 color = Muted,
