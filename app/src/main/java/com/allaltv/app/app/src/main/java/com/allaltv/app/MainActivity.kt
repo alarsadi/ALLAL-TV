@@ -86,20 +86,30 @@ private fun parseM3U(
 
         if (line.startsWith("#EXTINF", true)) {
             val displayName = line.substringAfterLast(",").trim()
+
             name = nameRegex.find(line)?.groupValues?.get(1)
                 ?.takeIf { it.isNotBlank() } ?: displayName
+
             logo = logoRegex.find(line)?.groupValues?.get(1)
             group = groupRegex.find(line)?.groupValues?.get(1) ?: ""
-        } else if (line.isNotBlank() && !line.startsWith("#") && name.isNotBlank()) {
+        } else if (
+            line.isNotBlank() &&
+            !line.startsWith("#") &&
+            name.isNotBlank()
+        ) {
             val value = "$name $group".lowercase()
 
             val category = when {
                 forceSports -> "رياضة"
+
                 listOf("sport", "football", "soccer", "bein", "match")
                     .any { value.contains(it) } -> "رياضة"
-                listOf("entertain", "movie", "cinema", "film", "series",
-                    "kids", "music", "comedy", "drama", "animation")
-                    .any { value.contains(it) } -> "ترفيه"
+
+                listOf(
+                    "entertain", "movie", "cinema", "film", "series",
+                    "kids", "music", "comedy", "drama", "animation"
+                ).any { value.contains(it) } -> "ترفيه"
+
                 else -> null
             }
 
@@ -112,6 +122,7 @@ private fun parseM3U(
             group = ""
         }
     }
+
     return result
 }
 
@@ -120,6 +131,7 @@ private fun downloadPlaylist(
     forceSports: Boolean = false
 ): List<TVChannel> {
     val connection = URL(playlistUrl).openConnection() as HttpURLConnection
+
     connection.connectTimeout = 20000
     connection.readTimeout = 45000
     connection.instanceFollowRedirects = true
@@ -136,14 +148,21 @@ private fun downloadPlaylist(
 
 class MainActivity : ComponentActivity() {
 
-    fun setImmersive(enabled: Boolean) {
+    // تم تغيير الاسم لتجنب التعارض مع دالة Activity
+    fun applyImmersiveMode(enabled: Boolean) {
         WindowCompat.setDecorFitsSystemWindows(window, !enabled)
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
+
+        val controller = WindowInsetsControllerCompat(
+            window,
+            window.decorView
+        )
 
         if (enabled) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
+
             controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                WindowInsetsControllerCompat
+                    .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
@@ -151,34 +170,85 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setImmersive(true)
-        setContent { ALLALTVApp() }
+
+        applyImmersiveMode(true)
+
+        setContent {
+            ALLALTVApp()
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) setImmersive(true)
+
+        if (hasFocus) {
+            applyImmersiveMode(true)
+        }
     }
 }
 
 @Composable
 fun ALLALTVApp() {
     val context = LocalContext.current
-    val activity = context as? Activity
 
-    var channels by remember { mutableStateOf<List<TVChannel>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var selectedChannelUrl by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedCategory by rememberSaveable { mutableStateOf("الكل") }
-    var selectedTab by rememberSaveable { mutableStateOf("الرئيسية") }
-    var searchText by rememberSaveable { mutableStateOf("") }
-    var favoriteUrls by rememberSaveable { mutableStateOf("") }
-    var drawerOpen by remember { mutableStateOf(false) }
+    var channels by remember {
+        mutableStateOf<List<TVChannel>>(emptyList())
+    }
 
-    val favorites = favoriteUrls.split("\n").filter { it.isNotBlank() }.toSet()
-    val selectedChannel = channels.firstOrNull { it.url == selectedChannelUrl }
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    var selectedChannelUrl by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedCategory by rememberSaveable {
+        mutableStateOf("الكل")
+    }
+
+    var selectedTab by rememberSaveable {
+        mutableStateOf("الرئيسية")
+    }
+
+    var searchText by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var favoriteUrls by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var drawerOpen by remember {
+        mutableStateOf(false)
+    }
+
+    val drawerState = rememberDrawerState(
+        initialValue = DrawerValue.Closed
+    )
+
+    LaunchedEffect(drawerOpen) {
+        if (drawerOpen) {
+            drawerState.open()
+        } else {
+            drawerState.close()
+        }
+    }
+
+    val favorites = favoriteUrls
+        .split("\n")
+        .filter { it.isNotBlank() }
+        .toSet()
+
+    val selectedChannel = channels.firstOrNull {
+        it.url == selectedChannelUrl
+    }
+
     val configuration = LocalConfiguration.current
-    val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 5 else 3
+
+    val columns = if (
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    ) 5 else 3
 
     LaunchedEffect(Unit) {
         val loaded = withContext(Dispatchers.IO) {
@@ -192,36 +262,52 @@ fun ALLALTVApp() {
 
             (sports + entertainment)
                 .distinctBy { it.url }
-                .sortedBy { if (it.category == "رياضة") 0 else 1 }
+                .sortedBy {
+                    if (it.category == "رياضة") 0 else 1
+                }
         }
+
         channels = loaded
         loading = false
     }
 
     BackHandler(
-        enabled = selectedChannelUrl != null || drawerOpen || selectedTab != "الرئيسية"
+        enabled = selectedChannelUrl != null ||
+                drawerState.isOpen ||
+                selectedTab != "الرئيسية"
     ) {
         when {
-            selectedChannelUrl != null -> selectedChannelUrl = null
-            drawerOpen -> drawerOpen = false
-            else -> selectedTab = "الرئيسية"
+            selectedChannelUrl != null -> {
+                selectedChannelUrl = null
+            }
+
+            drawerState.isOpen -> {
+                drawerOpen = false
+            }
+
+            else -> {
+                selectedTab = "الرئيسية"
+            }
         }
     }
 
     CompositionLocalProvider(
         LocalLayoutDirection provides LayoutDirection.Rtl
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = Navy) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Navy
+        ) {
             if (selectedChannel != null) {
                 PlayerScreen(
                     channel = selectedChannel,
-                    onBack = { selectedChannelUrl = null }
+                    onBack = {
+                        selectedChannelUrl = null
+                    }
                 )
             } else {
                 ModalNavigationDrawer(
-                    drawerState = rememberDrawerState(
-                        if (drawerOpen) DrawerValue.Open else DrawerValue.Closed
-                    ),
+                    drawerState = drawerState,
                     gesturesEnabled = true,
                     drawerContent = {
                         ModalDrawerSheet(
@@ -229,6 +315,7 @@ fun ALLALTVApp() {
                             modifier = Modifier.width(285.dp)
                         ) {
                             Spacer(Modifier.height(25.dp))
+
                             Text(
                                 "ALLAL TV",
                                 color = Green,
@@ -236,6 +323,7 @@ fun ALLALTVApp() {
                                 fontWeight = FontWeight.Black,
                                 modifier = Modifier.padding(20.dp)
                             )
+
                             Divider(color = CardColor)
 
                             listOf(
@@ -246,9 +334,13 @@ fun ALLALTVApp() {
                                 "المفضلة",
                                 "الإعدادات"
                             ).forEach { item ->
+
                                 NavigationDrawerItem(
                                     label = {
-                                        Text(item, color = White)
+                                        Text(
+                                            item,
+                                            color = White
+                                        )
                                     },
                                     selected = selectedTab == item,
                                     onClick = {
@@ -257,21 +349,26 @@ fun ALLALTVApp() {
                                             "الترفيه" -> "الرئيسية"
                                             else -> item
                                         }
+
                                         selectedCategory = when (item) {
                                             "الرياضة" -> "رياضة"
                                             "الترفيه" -> "ترفيه"
                                             else -> "الكل"
                                         }
+
                                         drawerOpen = false
                                     },
                                     colors = NavigationDrawerItemDefaults.colors(
-                                        selectedContainerColor = Color(0xFF194C45),
-                                        unselectedContainerColor = Color.Transparent
+                                        selectedContainerColor =
+                                            Color(0xFF194C45),
+                                        unselectedContainerColor =
+                                            Color.Transparent
                                     )
                                 )
                             }
 
                             Spacer(Modifier.weight(1f))
+
                             Text(
                                 "جميع الحقوق محفوظة © ALLAL TV",
                                 color = Muted,
@@ -286,11 +383,16 @@ fun ALLALTVApp() {
                             .fillMaxSize()
                             .background(Navy)
                     ) {
+
+                        // الهيدر
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color(0xFF0B2033))
-                                .padding(horizontal = 15.dp, vertical = 13.dp),
+                                .padding(
+                                    horizontal = 15.dp,
+                                    vertical = 13.dp
+                                ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -301,23 +403,33 @@ fun ALLALTVApp() {
                                     drawerOpen = true
                                 }
                             )
+
                             Spacer(Modifier.width(15.dp))
+
                             Text(
                                 "ALLAL ",
                                 color = White,
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.Black
                             )
+
                             Text(
                                 "TV",
                                 color = Green,
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.Black
                             )
+
                             Spacer(Modifier.weight(1f))
-                            Text("● مباشر", color = Green, fontSize = 12.sp)
+
+                            Text(
+                                "● مباشر",
+                                color = Green,
+                                fontSize = 12.sp
+                            )
                         }
 
+                        // البحث
                         if (selectedTab == "الرئيسية") {
                             Row(
                                 modifier = Modifier
@@ -325,61 +437,122 @@ fun ALLALTVApp() {
                                     .padding(12.dp)
                                     .clip(RoundedCornerShape(18.dp))
                                     .background(CardColor)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    .padding(
+                                        horizontal = 12.dp,
+                                        vertical = 10.dp
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("⌕", color = Green, fontSize = 23.sp)
+                                Text(
+                                    "⌕",
+                                    color = Green,
+                                    fontSize = 23.sp
+                                )
+
                                 Spacer(Modifier.width(8.dp))
+
                                 Box(Modifier.weight(1f)) {
                                     if (searchText.isEmpty()) {
-                                        Text("ابحث عن قناة...", color = Muted, fontSize = 13.sp)
+                                        Text(
+                                            "ابحث عن قناة...",
+                                            color = Muted,
+                                            fontSize = 13.sp
+                                        )
                                     }
+
                                     BasicTextField(
                                         value = searchText,
-                                        onValueChange = { searchText = it },
+                                        onValueChange = {
+                                            searchText = it
+                                        },
                                         singleLine = true,
                                         cursorBrush = SolidColor(Green),
-                                        textStyle = TextStyle(color = White, fontSize = 14.sp)
+                                        textStyle = TextStyle(
+                                            color = White,
+                                            fontSize = 14.sp
+                                        )
                                     )
                                 }
+
                                 if (searchText.isNotEmpty()) {
                                     Text(
                                         "×",
                                         color = White,
-                                        modifier = Modifier.clickable { searchText = "" }
+                                        modifier = Modifier.clickable {
+                                            searchText = ""
+                                        }
                                     )
                                 }
                             }
                         }
 
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
                             when (selectedTab) {
+
                                 "الرئيسية" -> {
                                     val shown = channels.filter { channel ->
-                                        (selectedCategory == "الكل" ||
-                                            channel.category == selectedCategory) &&
-                                            (channel.name.contains(searchText, true) ||
-                                                channel.category.contains(searchText, true))
+                                        (
+                                            selectedCategory == "الكل" ||
+                                                    channel.category == selectedCategory
+                                        ) && (
+                                            channel.name.contains(
+                                                searchText,
+                                                true
+                                            ) ||
+                                                    channel.category.contains(
+                                                        searchText,
+                                                        true
+                                                    )
+                                        )
                                     }
 
                                     Column(Modifier.fillMaxSize()) {
+
                                         Row(
-                                            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp),
+                                            horizontalArrangement =
+                                                Arrangement.spacedBy(8.dp)
                                         ) {
-                                            listOf("الكل", "رياضة", "ترفيه").forEach { category ->
-                                                val active = selectedCategory == category
+                                            listOf(
+                                                "الكل",
+                                                "رياضة",
+                                                "ترفيه"
+                                            ).forEach { category ->
+
+                                                val active =
+                                                    selectedCategory == category
+
                                                 Box(
                                                     Modifier
-                                                        .clip(RoundedCornerShape(20.dp))
-                                                        .background(if (active) Green else CardColor)
-                                                        .clickable { selectedCategory = category }
-                                                        .padding(horizontal = 17.dp, vertical = 10.dp)
+                                                        .clip(
+                                                            RoundedCornerShape(20.dp)
+                                                        )
+                                                        .background(
+                                                            if (active) Green
+                                                            else CardColor
+                                                        )
+                                                        .clickable {
+                                                            selectedCategory =
+                                                                category
+                                                        }
+                                                        .padding(
+                                                            horizontal = 17.dp,
+                                                            vertical = 10.dp
+                                                        )
                                                 ) {
                                                     Text(
                                                         category,
-                                                        color = if (active) Navy else White,
-                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (active)
+                                                            Navy
+                                                        else White,
+                                                        fontWeight =
+                                                            FontWeight.Bold,
                                                         fontSize = 12.sp
                                                     )
                                                 }
@@ -387,8 +560,10 @@ fun ALLALTVApp() {
                                         }
 
                                         Text(
-                                            if (selectedCategory == "الكل") "القنوات الرياضية والترفيهية"
-                                            else "قنوات $selectedCategory",
+                                            if (selectedCategory == "الكل")
+                                                "القنوات الرياضية والترفيهية"
+                                            else
+                                                "قنوات $selectedCategory",
                                             color = White,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 16.sp,
@@ -396,8 +571,14 @@ fun ALLALTVApp() {
                                         )
 
                                         if (loading) {
-                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                CircularProgressIndicator(color = Green)
+                                            Box(
+                                                Modifier.fillMaxSize(),
+                                                contentAlignment =
+                                                    Alignment.Center
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    color = Green
+                                                )
                                             }
                                         } else {
                                             ChannelGrid(
@@ -405,11 +586,17 @@ fun ALLALTVApp() {
                                                 favorites = favorites,
                                                 columns = columns,
                                                 onFavorite = { url ->
-                                                    favoriteUrls = (if (favorites.contains(url))
-                                                        favorites - url else favorites + url
-                                                    ).joinToString("\n")
+                                                    favoriteUrls =
+                                                        (
+                                                            if (favorites.contains(url))
+                                                                favorites - url
+                                                            else
+                                                                favorites + url
+                                                        ).joinToString("\n")
                                                 },
-                                                onChannelClick = { selectedChannelUrl = it.url }
+                                                onChannelClick = {
+                                                    selectedChannelUrl = it.url
+                                                }
                                             )
                                         }
                                     }
@@ -417,35 +604,49 @@ fun ALLALTVApp() {
 
                                 "المفضلة" -> {
                                     ChannelGrid(
-                                        channels = channels.filter { favorites.contains(it.url) },
+                                        channels = channels.filter {
+                                            favorites.contains(it.url)
+                                        },
                                         favorites = favorites,
                                         columns = columns,
                                         onFavorite = { url ->
-                                            favoriteUrls = (favorites - url).joinToString("\n")
+                                            favoriteUrls =
+                                                (favorites - url).joinToString("\n")
                                         },
-                                        onChannelClick = { selectedChannelUrl = it.url }
+                                        onChannelClick = {
+                                            selectedChannelUrl = it.url
+                                        }
                                     )
                                 }
 
-                                "المباريات" -> MatchesPage(
-                                    onWatchSports = {
-                                        selectedCategory = "رياضة"
-                                        selectedTab = "الرئيسية"
-                                    }
-                                )
+                                "المباريات" -> {
+                                    MatchesPage(
+                                        onWatchSports = {
+                                            selectedCategory = "رياضة"
+                                            selectedTab = "الرئيسية"
+                                        }
+                                    )
+                                }
 
-                                "الإعدادات" -> SettingsPage()
-                                else -> MatchesPage(
-                                    onWatchSports = {
-                                        selectedCategory = "رياضة"
-                                        selectedTab = "الرئيسية"
-                                    }
-                                )
+                                "الإعدادات" -> {
+                                    SettingsPage()
+                                }
+
+                                else -> {
+                                    MatchesPage(
+                                        onWatchSports = {
+                                            selectedCategory = "رياضة"
+                                            selectedTab = "الرئيسية"
+                                        }
+                                    )
+                                }
                             }
                         }
 
+                        // شريط التنقل السفلي
                         Row(
-                            Modifier.fillMaxWidth()
+                            Modifier
+                                .fillMaxWidth()
                                 .background(Color(0xFF091827))
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceAround
@@ -456,20 +657,29 @@ fun ALLALTVApp() {
                                 "المفضلة" to "♡",
                                 "الإعدادات" to "⚙"
                             ).forEach { item ->
+
                                 Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable {
-                                        selectedTab = item.first
-                                    }.padding(horizontal = 8.dp)
+                                    horizontalAlignment =
+                                        Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clickable {
+                                            selectedTab = item.first
+                                        }
+                                        .padding(horizontal = 8.dp)
                                 ) {
                                     Text(
                                         item.second,
-                                        color = if (selectedTab == item.first) Green else Muted,
+                                        color = if (
+                                            selectedTab == item.first
+                                        ) Green else Muted,
                                         fontSize = 21.sp
                                     )
+
                                     Text(
                                         item.first,
-                                        color = if (selectedTab == item.first) Green else Muted,
+                                        color = if (
+                                            selectedTab == item.first
+                                        ) Green else Muted,
                                         fontSize = 10.sp
                                     )
                                 }
@@ -491,8 +701,14 @@ private fun ChannelGrid(
     onChannelClick: (TVChannel) -> Unit
 ) {
     if (channels.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("لا توجد قنوات متاحة في هذا التصنيف", color = Muted)
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "لا توجد قنوات متاحة في هذا التصنيف",
+                color = Muted
+            )
         }
     } else {
         LazyVerticalGrid(
@@ -502,17 +718,24 @@ private fun ChannelGrid(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(channels, key = { it.url }) { channel ->
+            items(
+                channels,
+                key = { it.url }
+            ) { channel ->
+
                 Column(
                     Modifier
                         .clip(RoundedCornerShape(14.dp))
                         .background(CardColor)
-                        .clickable { onChannelClick(channel) }
+                        .clickable {
+                            onChannelClick(channel)
+                        }
                         .padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
-                        Modifier.fillMaxWidth()
+                        Modifier
+                            .fillMaxWidth()
                             .height(78.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color.White),
@@ -522,13 +745,20 @@ private fun ChannelGrid(
                             AsyncImage(
                                 model = channel.logo,
                                 contentDescription = channel.name,
-                                modifier = Modifier.fillMaxSize().padding(7.dp),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(7.dp),
                                 contentScale = ContentScale.Fit
                             )
                         } else {
-                            Text("▶", color = Green, fontSize = 30.sp)
+                            Text(
+                                "▶",
+                                color = Green,
+                                fontSize = 30.sp
+                            )
                         }
                     }
+
                     Text(
                         channel.name,
                         color = White,
@@ -538,14 +768,22 @@ private fun ChannelGrid(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 7.dp)
                     )
+
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(channel.category, color = Muted, fontSize = 9.sp)
-                        Spacer(Modifier.weight(1f))
                         Text(
-                            if (favorites.contains(channel.url)) "♥" else "♡",
+                            channel.category,
+                            color = Muted,
+                            fontSize = 9.sp
+                        )
+
+                        Spacer(Modifier.weight(1f))
+
+                        Text(
+                            if (favorites.contains(channel.url))
+                                "♥" else "♡",
                             color = Green,
                             fontSize = 19.sp,
                             modifier = Modifier.clickable {
@@ -560,30 +798,49 @@ private fun ChannelGrid(
 }
 
 @Composable
-private fun MatchesPage(onWatchSports: () -> Unit) {
+private fun MatchesPage(
+    onWatchSports: () -> Unit
+) {
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(25.dp))
-        Text("المباريات", color = White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+
+        Text(
+            "المباريات",
+            color = White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+
         Spacer(Modifier.height(20.dp))
+
         Text(
             "قسم المباريات",
             color = Green,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold
         )
+
         Spacer(Modifier.height(12.dp))
+
         Text(
             "سيتم عرض المواعيد والنتائج عند ربط مصدر بيانات رياضي مباشر.",
             color = Muted,
             fontSize = 13.sp
         )
+
         Spacer(Modifier.height(25.dp))
+
         Button(
             onClick = onWatchSports,
-            colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Navy)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Navy
+            )
         ) {
             Text("مشاهدة القنوات الرياضية")
         }
@@ -593,13 +850,28 @@ private fun MatchesPage(onWatchSports: () -> Unit) {
 @Composable
 private fun SettingsPage() {
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("إعدادات ALLAL TV", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "إعدادات ALLAL TV",
+            color = White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+
         Spacer(Modifier.height(25.dp))
-        Text("تحديث التطبيق", color = Green, fontSize = 17.sp)
+
+        Text(
+            "تحديث التطبيق",
+            color = Green,
+            fontSize = 17.sp
+        )
+
         Spacer(Modifier.height(12.dp))
+
         UpdateSection()
     }
 }
@@ -607,19 +879,34 @@ private fun SettingsPage() {
 @Composable
 fun UpdateSection() {
     val activity = LocalContext.current as? Activity
-    var info by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
-    var status by remember { mutableStateOf("تحقق من وجود إصدار جديد") }
-    var checking by remember { mutableStateOf(false) }
-    var showDialog by remember { mutableStateOf(false) }
+
+    var info by remember {
+        mutableStateOf<UpdateManager.UpdateInfo?>(null)
+    }
+
+    var status by remember {
+        mutableStateOf("تحقق من وجود إصدار جديد")
+    }
+
+    var checking by remember {
+        mutableStateOf(false)
+    }
+
+    var showDialog by remember {
+        mutableStateOf(false)
+    }
 
     Column(
         Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(CardColor)
-            .clickable(enabled = !checking && activity != null) {
+            .clickable(
+                enabled = !checking && activity != null
+            ) {
                 checking = true
                 status = "جاري البحث عن تحديث..."
                 info = null
+
                 activity?.let { current ->
                     UpdateManager.checkForUpdate(current) { update, message ->
                         info = update
@@ -632,29 +919,54 @@ fun UpdateSection() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(if (checking) "…" else "⟳", color = Green, fontSize = 27.sp)
-        Text("التحقق من التحديثات", color = White, fontSize = 12.sp)
+        Text(
+            if (checking) "…" else "⟳",
+            color = Green,
+            fontSize = 27.sp
+        )
+
+        Text(
+            "التحقق من التحديثات",
+            color = White,
+            fontSize = 12.sp
+        )
     }
 
     if (showDialog) {
         AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = { Text("تحديث ALLAL TV") },
-            text = { Text(status) },
+            onDismissRequest = {
+                showDialog = false
+            },
+            title = {
+                Text("تحديث ALLAL TV")
+            },
+            text = {
+                Text(status)
+            },
             confirmButton = {
                 if (info != null) {
-                    TextButton(onClick = {
-                        activity?.let { current ->
-                            UpdateManager.downloadAndInstall(current, info!!.apkUrl) { message ->
-                                status = message
+                    TextButton(
+                        onClick = {
+                            activity?.let { current ->
+                                UpdateManager.downloadAndInstall(
+                                    current,
+                                    info!!.apkUrl
+                                ) { message ->
+                                    status = message
+                                }
                             }
+
+                            showDialog = false
                         }
-                        showDialog = false
-                    }) {
+                    ) {
                         Text("تحميل وتثبيت")
                     }
                 } else {
-                    TextButton(onClick = { showDialog = false }) {
+                    TextButton(
+                        onClick = {
+                            showDialog = false
+                        }
+                    ) {
                         Text("حسناً")
                     }
                 }
@@ -672,95 +984,160 @@ fun PlayerScreen(
     val activity = context as? Activity
     val mainActivity = activity as? MainActivity
 
-    var errorMessage by remember(channel.url) { mutableStateOf<String?>(null) }
-    var retryCount by remember(channel.url) { mutableIntStateOf(0) }
+    var errorMessage by remember(channel.url) {
+        mutableStateOf<String?>(null)
+    }
 
+    var retryCount by remember(channel.url) {
+        mutableIntStateOf(0)
+    }
+
+    // تدوير الهاتف أفقياً وإرجاع الاتجاه السابق عند الخروج
     DisposableEffect(channel.url) {
         val oldOrientation = activity?.requestedOrientation
-        mainActivity?.setImmersive(true)
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        mainActivity?.applyImmersiveMode(true)
+
+        activity?.requestedOrientation =
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         onDispose {
             activity?.requestedOrientation =
-                oldOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            mainActivity?.setImmersive(true)
+                oldOrientation
+                    ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+
+            mainActivity?.applyImmersiveMode(true)
         }
     }
 
     val player = remember(channel.url, retryCount) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(channel.url))
-            playWhenReady = true
-            prepare()
-        }
+        ExoPlayer.Builder(context)
+            .build()
+            .apply {
+                setMediaItem(
+                    MediaItem.fromUri(channel.url)
+                )
+
+                playWhenReady = true
+                prepare()
+            }
     }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                errorMessage = error.message ?: "تعذر تشغيل القناة"
+
+            override fun onPlayerError(
+                error: PlaybackException
+            ) {
+                errorMessage =
+                    error.message ?: "تعذر تشغيل القناة"
             }
 
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) errorMessage = null
+            override fun onPlaybackStateChanged(
+                state: Int
+            ) {
+                if (state == Player.STATE_READY) {
+                    errorMessage = null
+                }
             }
         }
+
         player.addListener(listener)
+
         onDispose {
             player.removeListener(listener)
             player.release()
         }
     }
 
-    BackHandler { onBack() }
+    BackHandler {
+        onBack()
+    }
 
     Box(
-        Modifier.fillMaxSize().background(Color.Black)
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     this.player = player
+
                     useController = true
                     controllerAutoShow = true
                     controllerShowTimeoutMs = 3500
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+
+                    resizeMode =
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+
                     keepScreenOn = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    setShutterBackgroundColor(android.graphics.Color.BLACK)
+
+                    setShowBuffering(
+                        PlayerView.SHOW_BUFFERING_WHEN_PLAYING
+                    )
+
+                    setShutterBackgroundColor(
+                        android.graphics.Color.BLACK
+                    )
                 }
             },
             update = { view ->
                 view.player = player
                 view.useController = true
                 view.keepScreenOn = true
-                view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+
+                view.resizeMode =
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
         )
 
         if (errorMessage != null) {
             Column(
-                Modifier.align(Alignment.Center).padding(24.dp),
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("تعذر تشغيل القناة", color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "تعذر تشغيل القناة",
+                    color = White,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
                 Spacer(Modifier.height(10.dp))
-                Text(errorMessage ?: "", color = Muted, fontSize = 12.sp)
+
+                Text(
+                    errorMessage ?: "",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+
                 Spacer(Modifier.height(15.dp))
+
                 Button(
                     onClick = {
                         errorMessage = null
                         retryCount++
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Navy)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Green,
+                        contentColor = Navy
+                    )
                 ) {
                     Text("إعادة المحاولة")
                 }
+
                 Text(
                     "رجوع",
                     color = White,
-                    modifier = Modifier.padding(12.dp).clickable { onBack() }
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .clickable {
+                            onBack()
+                        }
                 )
             }
         }
