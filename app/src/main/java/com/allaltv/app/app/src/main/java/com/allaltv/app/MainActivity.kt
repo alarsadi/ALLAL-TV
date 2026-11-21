@@ -1,4 +1,3 @@
-
 package com.allaltv.app
 
 import android.app.Activity
