@@ -74,7 +74,6 @@ private fun parseM3U(
 ): List<TVChannel> {
 
     val channels = mutableListOf<TVChannel>()
-
     var channelName = ""
     var channelLogo: String? = null
     var groupTitle = ""
@@ -113,17 +112,16 @@ private fun parseM3U(
         ) {
 
             val category = when {
-
                 forceSports ||
-                groupTitle.contains("sport", ignoreCase = true) ||
-                channelName.contains("sport", ignoreCase = true) ->
+                groupTitle.contains("sport", true) ||
+                channelName.contains("sport", true) ->
                     "رياضة"
 
-                groupTitle.contains("news", ignoreCase = true) ->
+                groupTitle.contains("news", true) ->
                     "أخبار"
 
-                groupTitle.contains("movie", ignoreCase = true) ||
-                groupTitle.contains("entertain", ignoreCase = true) ->
+                groupTitle.contains("movie", true) ||
+                groupTitle.contains("entertain", true) ->
                     "ترفيه"
 
                 else -> "عالمية"
@@ -177,17 +175,12 @@ private fun downloadPlaylist(
 class MainActivity : ComponentActivity() {
 
     private fun hideSystemBars() {
-
-        WindowCompat.setDecorFitsSystemWindows(
-            window,
-            false
-        )
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         WindowInsetsControllerCompat(
             window,
             window.decorView
         ).apply {
-
             hide(WindowInsetsCompat.Type.systemBars())
 
             systemBarsBehavior =
@@ -260,11 +253,10 @@ fun ALLALTVApp() {
     val configuration = LocalConfiguration.current
 
     val gridColumns =
-        if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            5
-        } else {
-            3
-        }
+        if (
+            configuration.orientation ==
+            Configuration.ORIENTATION_LANDSCAPE
+        ) 5 else 3
 
     LaunchedEffect(Unit) {
 
@@ -396,6 +388,7 @@ fun ALLALTVApp() {
                                         title = "القنوات الرياضية والمميزة",
                                         favorites = favorites,
                                         columns = gridColumns,
+
                                         onFavorite = { url ->
 
                                             val updated =
@@ -408,6 +401,7 @@ fun ALLALTVApp() {
                                             favoriteUrls =
                                                 updated.joinToString("\n")
                                         },
+
                                         onChannelClick = {
                                             selectedChannelUrl = it.url
                                         }
@@ -430,10 +424,12 @@ fun ALLALTVApp() {
                                     title = "قنواتك المفضلة",
                                     favorites = favorites,
                                     columns = gridColumns,
+
                                     onFavorite = { url ->
                                         favoriteUrls =
                                             (favorites - url).joinToString("\n")
                                     },
+
                                     onChannelClick = {
                                         selectedChannelUrl = it.url
                                     }
@@ -521,6 +517,7 @@ fun Header(
             Spacer(Modifier.width(10.dp))
 
             Column {
+
                 Row {
                     Text(
                         "ALLAL ",
@@ -548,27 +545,11 @@ fun Header(
 
             Spacer(Modifier.weight(1f))
 
-            Text(
-                "عالمي",
-                color = White,
-                fontSize = 11.sp
-            )
-
+            Text("عالمي", color = White, fontSize = 11.sp)
             Spacer(Modifier.width(6.dp))
-
-            Text(
-                "●",
-                color = Green,
-                fontSize = 12.sp
-            )
-
+            Text("●", color = Green, fontSize = 12.sp)
             Spacer(Modifier.width(5.dp))
-
-            Text(
-                "مباشر",
-                color = White,
-                fontSize = 11.sp
-            )
+            Text("مباشر", color = White, fontSize = 11.sp)
         }
 
         Row(
@@ -799,9 +780,11 @@ fun ChannelGrid(
                         channel = channel,
                         isFavorite = channel.url != null &&
                             favorites.contains(channel.url),
+
                         onFavorite = {
                             channel.url?.let(onFavorite)
                         },
+
                         onClick = {
                             onChannelClick(channel)
                         }
@@ -824,7 +807,7 @@ fun ChannelCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(15.dp))
-            .background(Color(0xFF142A40))
+            .background(CardColor)
             .clickable(onClick = onClick)
             .padding(7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1022,10 +1005,7 @@ fun MatchesPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                Text(
-                    "⚽",
-                    fontSize = 42.sp
-                )
+                Text("⚽", fontSize = 42.sp)
 
                 Spacer(Modifier.height(12.dp))
 
@@ -1136,12 +1116,15 @@ fun UpdateSection() {
             onDismissRequest = {
                 showDialog = false
             },
+
             title = {
                 Text("تحديث ALLAL TV")
             },
+
             text = {
                 Text(status)
             },
+
             confirmButton = {
 
                 if (updateInfo != null) {
@@ -1233,6 +1216,10 @@ fun BottomNavigationBar(
     }
 }
 
+// ==========================================
+// مشغل الفيديو الجديد - ملء الشاشة تلقائياً
+// ==========================================
+
 @Composable
 fun PlayerScreen(
     channel: TVChannel,
@@ -1245,16 +1232,8 @@ fun PlayerScreen(
         mutableIntStateOf(0)
     }
 
-    var isBuffering by remember(channel.url, retryCount) {
-        mutableStateOf(true)
-    }
-
     var playbackError by remember(channel.url, retryCount) {
         mutableStateOf<String?>(null)
-    }
-
-    var isPlaying by remember(channel.url, retryCount) {
-        mutableStateOf(false)
     }
 
     val player = remember(channel.url, retryCount) {
@@ -1262,13 +1241,15 @@ fun PlayerScreen(
         channel.url?.let { url ->
 
             runCatching {
+
                 ExoPlayer.Builder(context)
                     .build()
                     .apply {
                         setMediaItem(MediaItem.fromUri(url))
-                        prepare()
                         playWhenReady = true
+                        prepare()
                     }
+
             }.getOrNull()
         }
     }
@@ -1277,56 +1258,28 @@ fun PlayerScreen(
 
         val listener = object : Player.Listener {
 
-            override fun onPlaybackStateChanged(
-                playbackState: Int
-            ) {
-
-                when (playbackState) {
-
-                    Player.STATE_BUFFERING -> {
-                        isBuffering = true
-                        playbackError = null
-                    }
-
-                    Player.STATE_READY -> {
-                        isBuffering = false
-                        playbackError = null
-                    }
-
-                    Player.STATE_ENDED -> {
-                        isBuffering = false
-                    }
-
-                    Player.STATE_IDLE -> {
-                        isBuffering = false
-                    }
-                }
-            }
-
-            override fun onIsPlayingChanged(
-                playing: Boolean
-            ) {
-                isPlaying = playing
-            }
-
             override fun onPlayerError(
                 error: PlaybackException
             ) {
 
-                isBuffering = false
-                isPlaying = false
-
                 playbackError =
-                    error.message
-                        ?: "تعذر تشغيل القناة. تحقق من رابط البث."
+                    error.message ?: "تعذر تشغيل القناة"
+            }
+
+            override fun onPlaybackStateChanged(
+                playbackState: Int
+            ) {
+
+                if (playbackState == Player.STATE_READY) {
+                    playbackError = null
+                }
             }
         }
 
         player?.addListener(listener)
 
         if (player == null) {
-            isBuffering = false
-            playbackError = "تعذر إنشاء مشغل الفيديو."
+            playbackError = "رابط القناة غير متوفر"
         }
 
         onDispose {
@@ -1335,276 +1288,117 @@ fun PlayerScreen(
         }
     }
 
-    Column(
+    BackHandler {
+        onBack()
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Navy)
+            .background(Color.Black)
     ) {
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Navy)
-                .padding(horizontal = 16.dp, vertical = 15.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        if (player != null) {
 
-            Text(
-                "‹",
-                color = White,
-                fontSize = 34.sp,
-                modifier = Modifier.clickable {
-                    onBack()
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+
+                factory = { ctx ->
+
+                    PlayerView(ctx).apply {
+
+                        this.player = player
+
+                        // إخفاء أزرار التحكم
+                        useController = false
+
+                        // ملء الشاشة
+                        resizeMode =
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+
+                        keepScreenOn = true
+
+                        // إخفاء مؤشر التحميل
+                        setShowBuffering(
+                            PlayerView.SHOW_BUFFERING_NEVER
+                        )
+
+                        // خلفية سوداء
+                        setShutterBackgroundColor(
+                            android.graphics.Color.BLACK
+                        )
+                    }
+                },
+
+                update = { view ->
+
+                    view.player = player
+                    view.useController = false
+                    view.keepScreenOn = true
+
+                    view.resizeMode =
+                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 }
             )
+        }
 
-            Spacer(Modifier.width(15.dp))
+        // لا شعار ولا بانر ولا مؤشر تحميل
 
-            Column {
+        if (playbackError != null) {
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp),
+
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
                 Text(
-                    channel.name,
-                    color = White,
-                    fontSize = 16.sp,
+                    "تعذر تشغيل القناة",
+                    color = Color.White,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold
                 )
 
+                Spacer(Modifier.height(12.dp))
+
                 Text(
-                    "بث مباشر",
-                    color = Green,
-                    fontSize = 11.sp
+                    playbackError ?: "",
+                    color = Color.LightGray,
+                    fontSize = 12.sp
                 )
-            }
 
-            Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(20.dp))
 
-            Text(
-                "ALLAL TV",
-                color = Green,
-                fontWeight = FontWeight.Black
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-
-            if (player != null) {
-
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-
-                    factory = { ctx ->
-
-                        PlayerView(ctx).apply {
-
-                            this.player = player
-                            useController = true
-
-                            resizeMode =
-                                AspectRatioFrameLayout.RESIZE_MODE_FIT
-
-                            keepScreenOn = true
-
-                            setShowBuffering(
-                                PlayerView.SHOW_BUFFERING_NEVER
-                            )
-                        }
+                Button(
+                    onClick = {
+                        playbackError = null
+                        retryCount++
                     },
 
-                    update = {
-                        it.player = player
-                        it.keepScreenOn = true
-                    }
-                )
-
-                if (isBuffering && playbackError == null) {
-
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Color.Black.copy(alpha = 0.78f)
-                            )
-                            .padding(18.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-
-                        CircularProgressIndicator(
-                            color = Green
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            "جاري تحميل البث...",
-                            color = White,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                if (playbackError != null) {
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Color.Black.copy(alpha = 0.90f)
-                            )
-                            .padding(18.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-
-                        Text(
-                            "تعذر تشغيل القناة",
-                            color = White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            playbackError ?: "",
-                            color = Muted,
-                            fontSize = 12.sp
-                        )
-
-                        Spacer(Modifier.height(20.dp))
-
-                        Button(
-                            onClick = {
-                                playbackError = null
-                                isBuffering = true
-                                retryCount++
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Green,
-                                contentColor = Navy
-                            )
-                        ) {
-
-                            Text(
-                                "إعادة المحاولة",
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
-                Text(
-                    "ALLAL TV",
-                    color = White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(
-                            Color.Black.copy(alpha = 0.85f)
-                        )
-                        .padding(
-                            horizontal = 12.dp,
-                            vertical = 7.dp
-                        )
-                )
-
-            } else {
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Green,
+                        contentColor = Navy
+                    )
                 ) {
 
                     Text(
-                        "▶",
-                        color = Green,
-                        fontSize = 45.sp
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    Text(
-                        "البث غير متوفر حالياً",
-                        color = White,
-                        fontSize = 17.sp,
+                        "إعادة المحاولة",
                         fontWeight = FontWeight.Bold
                     )
-
-                    Text(
-                        playbackError ?: "رابط القناة غير متوفر",
-                        color = Muted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 7.dp)
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Button(
-                        onClick = {
-                            retryCount++
-                            playbackError = null
-                            isBuffering = true
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Green,
-                            contentColor = Navy
-                        )
-                    ) {
-                        Text("إعادة المحاولة")
-                    }
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "رجوع",
+                    color = Color.White,
+                    modifier = Modifier.clickable {
+                        onBack()
+                    }
+                )
             }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
-        ) {
-
-            Text(
-                channel.name,
-                color = White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            Text(
-                "مشغل ALLAL TV",
-                color = Green,
-                fontSize = 13.sp
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                when {
-                    playbackError != null ->
-                        "حدث خطأ أثناء تشغيل البث."
-
-                    isBuffering ->
-                        "يرجى الانتظار، جاري الاتصال بالقناة."
-
-                    isPlaying ->
-                        "القناة تعمل الآن."
-
-                    else ->
-                        "استمتع بمشاهدة البث المباشر."
-                },
-                color = Muted,
-                fontSize = 12.sp
-            )
         }
     }
 }
